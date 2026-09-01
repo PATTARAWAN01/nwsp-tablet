@@ -101,7 +101,7 @@ export default function ReportsView() {
         'เลข BOX KB': dev.box_kb_no,
         'สถานะการตรวจ': isChecked ? (isDamaged ? 'ชำรุด' : 'ปกติ') : 'ยังไม่ได้ตรวจ',
         'รายการชำรุด / หมายเหตุ': damagedList.join(', ') || '-',
-        'ผู้ตรวจเช็ค': ins ? (ins.inspector || 'ครูที่ปรึกษา') : '-',
+        'ครูผู้ตรวจเช็ค': ins ? (ins.inspector || 'ครูผู้ตรวจเช็ค') : '-',
         'วันที่ตรวจเช็ค': ins && ins.inspected_at ? new Date(ins.inspected_at).toLocaleDateString('th-TH') : '-'
       };
     });
@@ -303,12 +303,13 @@ export default function ReportsView() {
                 <th className="p-2.5 border border-slate-300 font-mono">BOX KB</th>
                 <th className="p-2.5 border border-slate-300 text-center">ผลการตรวจ</th>
                 <th className="p-2.5 border border-slate-300">รายการอุปกรณ์ที่ชำรุด / หมายเหตุ</th>
+                <th className="p-2.5 border border-slate-300 text-slate-900 font-bold">ครูผู้ตรวจเช็ค</th>
               </tr>
             </thead>
             <tbody>
               {filteredDevicesList.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="p-6 text-center text-slate-500 font-medium border border-slate-300">
+                  <td colSpan="9" className="p-6 text-center text-slate-500 font-medium border border-slate-300">
                     ไม่พบรายการอุปกรณ์ตามเงื่อนไขที่เลือก
                   </td>
                 </tr>
@@ -355,6 +356,9 @@ export default function ReportsView() {
                         ) : (
                           <span className="text-slate-400">-</span>
                         )}
+                      </td>
+                      <td className="p-2 border border-slate-300 font-semibold text-slate-800">
+                        {ins ? (ins.inspector || 'ครูประจำชั้น') : <span className="text-slate-400">-</span>}
                       </td>
                     </tr>
                   );
