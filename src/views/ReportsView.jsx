@@ -13,7 +13,8 @@ import {
   Tablet, 
   Building2, 
   UserCheck, 
-  Calendar 
+  Calendar,
+  Sparkles
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -175,6 +176,17 @@ export default function ReportsView() {
             <Printer className="w-4 h-4" />
             <span>พิมพ์รายงาน / เซฟ PDF</span>
           </button>
+        </div>
+      </div>
+
+      {/* Print Advice Banner (Hidden on Print) */}
+      <div className="bg-amber-50/90 border border-amber-300/80 text-amber-950 rounded-2xl p-4 px-5 text-xs font-sarabun flex items-center space-x-3.5 shadow-xs no-print">
+        <Sparkles className="w-5 h-5 text-amber-600 shrink-0" />
+        <div>
+          <p className="font-extrabold font-prompt text-amber-950 text-sm">💡 คำแนะนำสำหรับการสั่งพิมพ์ / บันทึกไฟล์ PDF ที่สมบูรณ์ที่สุด:</p>
+          <p className="text-amber-900 text-xs mt-0.5 leading-relaxed">
+            ในหน้าต่างสั่งพิมพ์ (Print Dialog) ควรตั้งค่าขนาดกระดาษเป็น <strong>A4 (แนวนอน / Landscape)</strong> และตั้งค่า <strong>ระยะขอบ (Margins) เป็น "ตามค่าเริ่มต้น (Default)"</strong> ระบบได้จัดระยะขอบบน-ล่างไว้ 22 มม. อย่างสวยงามเรียบร้อยแล้วครับ
+          </p>
         </div>
       </div>
 
