@@ -198,6 +198,7 @@ export default function TeacherInspection() {
 
   const filteredDevices = devices.filter(d => 
     !searchQuery ||
+    (d.prefix && d.prefix.toLowerCase().includes(searchQuery.toLowerCase())) ||
     d.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     d.last_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     d.serial_no.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -461,7 +462,7 @@ export default function TeacherInspection() {
                           </div>
 
                           <h3 className="font-extrabold text-slate-900 text-lg sm:text-xl font-prompt pt-0.5">
-                            3. {dev.first_name} {dev.last_name}
+                            3. {dev.prefix || ''} {dev.first_name} {dev.last_name}
                           </h3>
 
                           <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 font-medium">

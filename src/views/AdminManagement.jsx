@@ -39,6 +39,7 @@ export default function AdminManagement() {
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({
     type: 'student',
+    prefix: 'นาย',
     box_no: '',
     box_kb_no: '',
     serial_no: '',
@@ -115,6 +116,7 @@ export default function AdminManagement() {
     setEditingId(null);
     setFormData({
       type: 'student',
+      prefix: 'นาย',
       box_no: '',
       box_kb_no: '',
       serial_no: '',
@@ -130,6 +132,7 @@ export default function AdminManagement() {
     setEditingId(dev.id);
     setFormData({
       type: dev.type || 'student',
+      prefix: dev.prefix || 'นาย',
       box_no: dev.box_no || '',
       box_kb_no: dev.box_kb_no || '',
       serial_no: dev.serial_no || '',
@@ -190,10 +193,10 @@ export default function AdminManagement() {
 
   const downloadSampleCSV = () => {
     const csvContent = 
-`type,serial_no,first_name,last_name,grade,room,box_no,box_kb_no
-student,R52T100001X,กิตติพงษ์,ใจดี,ม.4,1,BOX-STU-001,KB-STU-001
-student,R52T100002X,ณัฐวุฒิ,มีสุข,ม.4,2,BOX-STU-002,KB-STU-002
-teacher,R52T200001X,สมชาย,วิชาการ,ครู,-,BOX-TCH-001,KB-TCH-001`;
+`type,prefix,serial_no,first_name,last_name,grade,room,box_no,box_kb_no
+student,นาย,R52T100001X,กิตติพงษ์,ใจดี,ม.4,1,BOX-STU-001,KB-STU-001
+student,นางสาว,R52T100002X,ชลธิชา,มีสุข,ม.4,2,BOX-STU-002,KB-STU-002
+teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,BOX-TCH-001,KB-TCH-001`;
     
     const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -237,6 +240,7 @@ teacher,R52T200001X,สมชาย,วิชาการ,ครู,-,BOX-TCH-00
       const q = searchQuery.toLowerCase();
       return (
         d.serial_no.toLowerCase().includes(q) ||
+        (d.prefix && d.prefix.toLowerCase().includes(q)) ||
         d.first_name.toLowerCase().includes(q) ||
         d.last_name.toLowerCase().includes(q) ||
         d.box_no.toLowerCase().includes(q)
@@ -471,7 +475,7 @@ teacher,R52T200001X,สมชาย,วิชาการ,ครู,-,BOX-TCH-00
                         </td>
 
                         <td className="px-5 py-4 font-bold text-slate-900 font-prompt text-base">
-                          {dev.first_name} {dev.last_name}
+                          {dev.prefix || ''} {dev.first_name} {dev.last_name}
                         </td>
 
                         <td className="px-5 py-4 text-xs font-bold text-slate-800">
@@ -491,7 +495,7 @@ teacher,R52T200001X,สมชาย,วิชาการ,ครู,-,BOX-TCH-00
                             <Edit className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => handleDelete(dev.id, `${dev.first_name} ${dev.last_name}`)}
+                            onClick={() => handleDelete(dev.id, `${dev.prefix || ''} ${dev.first_name} ${dev.last_name}`)}
                             className="p-2 bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-900 rounded-xl text-xs transition-colors"
                             title="ลบ"
                           >
@@ -518,7 +522,7 @@ teacher,R52T200001X,สมชาย,วิชาการ,ครู,-,BOX-TCH-00
                 นำเข้าข้อมูลอุปกรณ์และผู้ครอบครองจำนวนมาก (CSV Import)
               </h3>
               <p className="text-xs text-slate-500 font-medium mt-0.5">
-                รองรับการนำเข้าข้อมูลนักเรียน ม.4 - ม.6 (ห้อง 1-4) และ ครูผู้สอน
+                รองรับการนำเข้าข้อมูลนักเรียน ม.4 - ม.6 (ห้อง 1-4) และ ครูผู้สอน (รองรับคอลัมน์ prefix: นาย, นางสาว, นาง)
               </p>
             </div>
 
@@ -588,7 +592,7 @@ teacher,R52T200001X,สมชาย,วิชาการ,ครู,-,BOX-TCH-00
                         <td className="p-2.5 text-slate-400">{idx + 1}</td>
                         <td className="p-2.5 font-bold">{row.type || 'student'}</td>
                         <td className="p-2.5 font-mono font-extrabold text-blue-700 text-sm">{row.serial_no}</td>
-                        <td className="p-2.5 font-bold text-slate-900">{row.first_name} {row.last_name}</td>
+                        <td className="p-2.5 font-bold text-slate-900">{row.prefix || ''} {row.first_name} {row.last_name}</td>
                         <td className="p-2.5 font-semibold">{row.grade}/{row.room}</td>
                         <td className="p-2.5 font-mono">{row.box_no}</td>
                         <td className="p-2.5 font-mono">{row.box_kb_no}</td>
@@ -770,9 +774,23 @@ teacher,R52T200001X,สมชาย,วิชาการ,ครู,-,BOX-TCH-00
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {/* Title Prefix Dropdown & First / Last Name */}
+              <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-900 mb-1">3.1 ชื่อ:</label>
+                  <label className="block font-bold text-slate-900 mb-1">3.1 คำนำหน้า:</label>
+                  <select
+                    value={formData.prefix}
+                    onChange={(e) => setFormData({ ...formData, prefix: e.target.value })}
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-bold text-slate-900"
+                  >
+                    <option value="นาย">นาย</option>
+                    <option value="นางสาว">นางสาว</option>
+                    <option value="นาง">นาง</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-900 mb-1">3.2 ชื่อ:</label>
                   <input
                     type="text"
                     required
@@ -782,8 +800,9 @@ teacher,R52T200001X,สมชาย,วิชาการ,ครู,-,BOX-TCH-00
                     className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-bold text-slate-900"
                   />
                 </div>
+
                 <div>
-                  <label className="block font-bold text-slate-900 mb-1">3.2 นามสกุล:</label>
+                  <label className="block font-bold text-slate-900 mb-1">3.3 นามสกุล:</label>
                   <input
                     type="text"
                     required

@@ -58,7 +58,7 @@ export function exportToExcel({ devices, inspections, stats, academicYear, round
 
   // --- Sheet 3: รายชื่อและผลการตรวจทั้งหมด (All Master Records) ---
   const masterHeader = [
-    "ลำดับ", "ประเภท", "เลข BOX", "เลข BOX KB", "Serial No.", "ชื่อ", "นามสกุล", "ชั้น", "ห้อง",
+    "ลำดับ", "ประเภท", "คำนำหน้า", "เลข BOX", "เลข BOX KB", "Serial No.", "ชื่อ", "นามสกุล", "ชั้น", "ห้อง",
     "สถานะตรวจ", "1.Tablet", "2.S Pen", "3.คีย์บอร์ด", "4.สาย Tablet", "5.สาย KB", "6.Adapter", "หมายเหตุชำรุด"
   ];
   
@@ -88,6 +88,7 @@ export function exportToExcel({ devices, inspections, stats, academicYear, round
     masterRows.push([
       idx + 1,
       dev.type === 'teacher' ? 'ครู' : 'นักเรียน',
+      dev.prefix || 'นาย',
       dev.box_no,
       dev.box_kb_no,
       dev.serial_no,

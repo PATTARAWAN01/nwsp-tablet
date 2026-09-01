@@ -94,6 +94,7 @@ export const deviceService = {
       const q = search.toLowerCase().trim();
       devices = devices.filter(d => 
         (d.serial_no && d.serial_no.toLowerCase().includes(q)) ||
+        (d.prefix && d.prefix.toLowerCase().includes(q)) ||
         (d.first_name && d.first_name.toLowerCase().includes(q)) ||
         (d.last_name && d.last_name.toLowerCase().includes(q)) ||
         (d.box_no && d.box_no.toLowerCase().includes(q)) ||
@@ -114,6 +115,7 @@ export const deviceService = {
 
     const newDevice = {
       id: `DEV-${Date.now()}-${Math.floor(Math.random()*1000)}`,
+      prefix: deviceData.prefix || 'นาย',
       ...deviceData,
       serial_no: deviceData.serial_no.trim().toUpperCase(),
       created_at: new Date().toISOString()
@@ -173,6 +175,7 @@ export const deviceService = {
 
       const deviceObj = {
         type: row.type === 'teacher' || row.grade === 'ครู' ? 'teacher' : 'student',
+        prefix: row.prefix || row.title_prefix || 'นาย',
         box_no: row.box_no || '-',
         box_kb_no: row.box_kb_no || '-',
         serial_no: serialClean,

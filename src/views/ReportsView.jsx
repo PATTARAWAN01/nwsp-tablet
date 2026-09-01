@@ -7,9 +7,7 @@ import {
   FileSpreadsheet, 
   Printer, 
   Filter, 
-  Tablet, 
-  CheckCircle2, 
-  AlertTriangle
+  Tablet
 } from 'lucide-react';
 
 export default function ReportsView() {
@@ -201,7 +199,7 @@ export default function ReportsView() {
           <div className="flex items-center justify-center space-x-3 mb-2">
             <img src="/LOGO-N.png" alt="โลโก้โรงเรียน" className="w-14 h-14 object-contain" />
             <div className="text-left">
-              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 leading-tight">
+              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 leading-tight font-prompt">
                 รายงานการตรวจเช็คอุปกรณ์ Tablet
               </h2>
               <p className="text-xs sm:text-sm font-bold text-blue-900">
@@ -284,7 +282,7 @@ export default function ReportsView() {
                       <td className="p-2 border border-slate-300 font-bold">{dev.type === 'teacher' ? 'ครู' : 'นักเรียน'}</td>
                       <td className="p-2 border border-slate-300 font-mono font-extrabold text-blue-800 text-sm">{dev.serial_no}</td>
                       <td className="p-2 border border-slate-300 font-bold text-slate-900 text-sm font-prompt">
-                        {dev.first_name} {dev.last_name}
+                        {dev.prefix || ''} {dev.first_name} {dev.last_name}
                       </td>
                       <td className="p-2 border border-slate-300 text-center font-semibold">
                         {dev.type === 'teacher' ? 'ครู' : `${dev.grade}/${dev.room}`}

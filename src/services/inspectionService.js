@@ -1,6 +1,6 @@
 import { initStoreIfEmpty } from './deviceService';
 
-const INSPECTIONS_KEY = 'anywhere_tablet_inspections_v1';
+const INSPECTIONS_KEY = 'anywhere_tablet_inspections_v3';
 
 function getLocalInspections() {
   try {
@@ -119,7 +119,7 @@ export const inspectionService = {
               serial_no: dev.serial_no,
               box_no: dev.box_no,
               box_kb_no: dev.box_kb_no,
-              owner: `${dev.first_name} ${dev.last_name}`,
+              owner: `${dev.prefix ? dev.prefix + ' ' : ''}${dev.first_name} ${dev.last_name}`,
               type: dev.type,
               grade_room: dev.type === 'teacher' ? 'ครู' : `${dev.grade}/${dev.room}`,
               item_name: getCategoryLabel(cat),
