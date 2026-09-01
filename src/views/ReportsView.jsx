@@ -244,8 +244,8 @@ export default function ReportsView() {
               <tr className="bg-slate-100 text-slate-900 border border-slate-300 font-bold">
                 <th className="p-2.5 border border-slate-300 text-center w-10">#</th>
                 <th className="p-2.5 border border-slate-300">1. ประเภท</th>
-                <th className="p-2.5 border border-slate-300 text-blue-800 font-extrabold">2. Serial No. (สำคัญที่สุด)</th>
-                <th className="p-2.5 border border-slate-300 font-extrabold text-slate-900">3. ชื่อ - นามสกุล (สำคัญที่สุด)</th>
+                <th className="p-2.5 border border-slate-300 text-blue-800 font-extrabold">2. Serial No.</th>
+                <th className="p-2.5 border border-slate-300 font-extrabold text-slate-900">3. ชื่อ - นามสกุล</th>
                 <th className="p-2.5 border border-slate-300 text-center">4. ชั้น/ห้อง</th>
                 <th className="p-2.5 border border-slate-300 font-mono">5. เลข BOX</th>
                 <th className="p-2.5 border border-slate-300 font-mono">6. เลข BOX KB</th>

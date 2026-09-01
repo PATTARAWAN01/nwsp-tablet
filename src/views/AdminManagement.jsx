@@ -444,8 +444,8 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
                 <thead className="bg-slate-50 text-slate-800 uppercase text-xs border-b border-slate-200 font-bold">
                   <tr>
                     <th className="px-5 py-4">1. ประเภท</th>
-                    <th className="px-5 py-4 text-blue-700 font-extrabold text-xs">2. Serial No. (สำคัญที่สุด)</th>
-                    <th className="px-5 py-4 text-slate-900 font-extrabold text-xs">3. ชื่อ - นามสกุล (สำคัญที่สุด)</th>
+                    <th className="px-5 py-4 text-blue-700 font-extrabold text-xs">2. Serial No.</th>
+                    <th className="px-5 py-4 text-slate-900 font-extrabold text-xs">3. ชื่อ - นามสกุล</th>
                     <th className="px-5 py-4">4. ระดับชั้น / ห้อง</th>
                     <th className="px-5 py-4">5. เลข BOX</th>
                     <th className="px-5 py-4">6. เลข BOX KB</th>
@@ -522,7 +522,7 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
                 นำเข้าข้อมูลอุปกรณ์และผู้ครอบครองจำนวนมาก (CSV Import)
               </h3>
               <p className="text-xs text-slate-500 font-medium mt-0.5">
-                รองรับการนำเข้าข้อมูลนักเรียน ม.4 - ม.6 (ห้อง 1-4) และ ครูผู้สอน (รองรับคอลัมน์ prefix: นาย, นางสาว, นาง)
+                รองรับการนำเข้าข้อมูลนักเรียน ม.4 - ม.6 (ห้อง 1-4) และ ครูผู้สอน
               </p>
             </div>
 
@@ -763,7 +763,7 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
               </div>
 
               <div>
-                <label className="block font-extrabold text-blue-700 mb-1">2. Serial No. (สำคัญที่สุด):</label>
+                <label className="block font-extrabold text-blue-700 mb-1">2. Serial No.:</label>
                 <input
                   type="text"
                   required
