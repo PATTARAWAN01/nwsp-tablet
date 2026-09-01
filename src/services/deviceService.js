@@ -1,6 +1,5 @@
 import { 
   generateSampleDevices, 
-  generateSampleInspections, 
   INITIAL_ACADEMIC_YEAR, 
   INITIAL_INSPECTION_ROUND,
   DEFAULT_ROOM_PINS
@@ -17,11 +16,10 @@ import {
   writeBatch 
 } from 'firebase/firestore';
 
-const DEVICES_KEY = 'anywhere_tablet_devices_v3';
-const CONFIG_KEY = 'anywhere_tablet_config_v3';
-const PINS_KEY = 'anywhere_tablet_room_pins_v3';
-const INSPECTIONS_KEY = 'anywhere_tablet_inspections_v3';
-const CLEARED_KEY = 'anywhere_tablet_cleared_v3';
+const DEVICES_KEY = 'anywhere_tablet_devices_v4';
+const CONFIG_KEY = 'anywhere_tablet_config_v4';
+const PINS_KEY = 'anywhere_tablet_room_pins_v4';
+const INSPECTIONS_KEY = 'anywhere_tablet_inspections_v4';
 
 function getLocalData(key, defaultVal) {
   try {
@@ -42,71 +40,67 @@ function setLocalData(key, value) {
 }
 
 export async function initStoreIfEmpty() {
-  const isCleared = getLocalData(CLEARED_KEY, false);
-  
   if (isFirebaseActive && db) {
-    try {
-      // 1. Devices
-      const devSnap = await getDocs(collection(db, "devices"));
-      if (!isCleared && devSnap.empty) {
-        const samples = generateSampleDevices();
-        for (const d of samples) {
-          await setDoc(doc(db, "devices", d.id), d);
+    // Background async sync without blocking UI startup
+    (async () => {
+      try {
+        // 1. Devices
+        const devSnap = await getDocs(collection(db, "devices"));
+        if (devSnap.empty) {
+          const samples = generateSampleDevices();
+          const batch = writeBatch(db);
+          samples.forEach(d => {
+            batch.set(doc(db, "devices", d.id), d);
+          });
+          await batch.commit();
+          setLocalData(DEVICES_KEY, samples);
+        } else {
+          const list = devSnap.docs.map(doc => doc.data());
+          setLocalData(DEVICES_KEY, list);
         }
-        setLocalData(DEVICES_KEY, samples);
-      } else if (!devSnap.empty) {
-        const list = devSnap.docs.map(doc => doc.data());
-        setLocalData(DEVICES_KEY, list);
-      }
 
-      // 2. Config
-      const configDoc = await getDoc(doc(db, "settings", "config"));
-      if (!configDoc.exists()) {
-        const defaultConfig = {
-          academic_years: ["2569"],
-          current_academic_year: INITIAL_ACADEMIC_YEAR,
-          current_round: INITIAL_INSPECTION_ROUND,
-          admin_password: "nwsp1234"
-        };
-        await setDoc(doc(db, "settings", "config"), defaultConfig);
-        setLocalData(CONFIG_KEY, defaultConfig);
-      } else {
-        setLocalData(CONFIG_KEY, configDoc.data());
-      }
-
-      // 3. Room Pins
-      const pinsDoc = await getDoc(doc(db, "settings", "pins"));
-      if (!pinsDoc.exists()) {
-        await setDoc(doc(db, "settings", "pins"), DEFAULT_ROOM_PINS);
-        setLocalData(PINS_KEY, DEFAULT_ROOM_PINS);
-      } else {
-        setLocalData(PINS_KEY, pinsDoc.data());
-      }
-
-      // 4. Inspections
-      const insSnap = await getDocs(collection(db, "inspections"));
-      if (!isCleared && insSnap.empty) {
-        const localDevs = getLocalData(DEVICES_KEY, []);
-        const samplesIns = generateSampleInspections(localDevs);
-        for (const key of Object.keys(samplesIns)) {
-          await setDoc(doc(db, "inspections", key), samplesIns[key]);
+        // 2. Config
+        const configDoc = await getDoc(doc(db, "settings", "config"));
+        if (!configDoc.exists()) {
+          const defaultConfig = {
+            academic_years: ["2569"],
+            current_academic_year: INITIAL_ACADEMIC_YEAR,
+            current_round: INITIAL_INSPECTION_ROUND,
+            admin_password: "nwsp1234"
+          };
+          await setDoc(doc(db, "settings", "config"), defaultConfig);
+          setLocalData(CONFIG_KEY, defaultConfig);
+        } else {
+          setLocalData(CONFIG_KEY, configDoc.data());
         }
-        setLocalData(INSPECTIONS_KEY, samplesIns);
-      } else if (!insSnap.empty) {
-        const insObj = {};
-        insSnap.docs.forEach(d => {
-          insObj[d.id] = d.data();
-        });
-        setLocalData(INSPECTIONS_KEY, insObj);
-      }
 
-    } catch (e) {
-      console.warn("Firestore sync during init failed, using Local Storage:", e);
-    }
+        // 3. Room Pins
+        const pinsDoc = await getDoc(doc(db, "settings", "pins"));
+        if (!pinsDoc.exists()) {
+          await setDoc(doc(db, "settings", "pins"), DEFAULT_ROOM_PINS);
+          setLocalData(PINS_KEY, DEFAULT_ROOM_PINS);
+        } else {
+          setLocalData(PINS_KEY, pinsDoc.data());
+        }
+
+        // 4. Inspections (Do NOT auto-seed pre-filled sample inspections so initial status stays unselected!)
+        const insSnap = await getDocs(collection(db, "inspections"));
+        if (!insSnap.empty) {
+          const insObj = {};
+          insSnap.docs.forEach(d => {
+            insObj[d.id] = d.data();
+          });
+          setLocalData(INSPECTIONS_KEY, insObj);
+        }
+
+      } catch (e) {
+        console.warn("Background Firestore sync info:", e.message);
+      }
+    })();
   } else {
-    // Local persistence mode
+    // Local persistence fallback
     let devices = getLocalData(DEVICES_KEY, null);
-    if (!isCleared && (!devices || devices.length === 0)) {
+    if (!devices || devices.length === 0) {
       devices = generateSampleDevices();
       setLocalData(DEVICES_KEY, devices);
     }
@@ -126,31 +120,27 @@ export async function initStoreIfEmpty() {
     if (!pins) {
       setLocalData(PINS_KEY, DEFAULT_ROOM_PINS);
     }
-
-    let inspections = getLocalData(INSPECTIONS_KEY, null);
-    if (!isCleared && !inspections) {
-      inspections = generateSampleInspections(devices || []);
-      setLocalData(INSPECTIONS_KEY, inspections);
-    }
   }
 }
 
-// Initial sync call
+// Immediate initial sync
 initStoreIfEmpty();
 
 export const deviceService = {
   getAllDevices: async () => {
+    // Fast return from local cache first
+    const cached = getLocalData(DEVICES_KEY, []);
+    
     if (isFirebaseActive && db) {
-      try {
-        const devSnap = await getDocs(collection(db, "devices"));
-        const list = devSnap.docs.map(d => d.data());
-        setLocalData(DEVICES_KEY, list);
-        return list;
-      } catch (e) {
-        console.error("Firestore getDevices error, fallback to local:", e);
-      }
+      // Async update cache in background
+      getDocs(collection(db, "devices")).then(devSnap => {
+        if (!devSnap.empty) {
+          const list = devSnap.docs.map(d => d.data());
+          setLocalData(DEVICES_KEY, list);
+        }
+      }).catch(e => console.error("Firestore getDevices error:", e));
     }
-    return getLocalData(DEVICES_KEY, []);
+    return cached;
   },
 
   getDevices: async ({ academicYear, grade, room, search } = {}) => {
@@ -181,7 +171,7 @@ export const deviceService = {
   },
 
   addDevice: async (deviceData) => {
-    const devices = await deviceService.getAllDevices();
+    const devices = getLocalData(DEVICES_KEY, []);
     
     const exists = devices.some(d => d.serial_no.toUpperCase() === deviceData.serial_no.toUpperCase() && d.academic_year === deviceData.academic_year);
     if (exists) {
@@ -196,17 +186,18 @@ export const deviceService = {
       created_at: new Date().toISOString()
     };
 
-    if (isFirebaseActive && db) {
-      await setDoc(doc(db, "devices", newDevice.id), newDevice);
-    }
-
     devices.push(newDevice);
     setLocalData(DEVICES_KEY, devices);
+
+    if (isFirebaseActive && db) {
+      setDoc(doc(db, "devices", newDevice.id), newDevice).catch(e => console.error("Firestore addDevice error:", e));
+    }
+
     return newDevice;
   },
 
   updateDevice: async (id, deviceData) => {
-    const devices = await deviceService.getAllDevices();
+    const devices = getLocalData(DEVICES_KEY, []);
     const idx = devices.findIndex(d => d.id === id);
     if (idx === -1) throw new Error("ไม่พบข้อมูลอุปกรณ์ที่ต้องการแก้ไข");
 
@@ -216,40 +207,45 @@ export const deviceService = {
       updated_at: new Date().toISOString()
     };
 
-    if (isFirebaseActive && db) {
-      await setDoc(doc(db, "devices", id), updatedDev);
-    }
-
     devices[idx] = updatedDev;
     setLocalData(DEVICES_KEY, devices);
+
+    if (isFirebaseActive && db) {
+      setDoc(doc(db, "devices", id), updatedDev).catch(e => console.error("Firestore updateDevice error:", e));
+    }
+
     return updatedDev;
   },
 
   deleteDevice: async (id) => {
-    if (isFirebaseActive && db) {
-      await deleteDoc(doc(db, "devices", id));
-    }
     let devices = getLocalData(DEVICES_KEY, []);
     devices = devices.filter(d => d.id !== id);
     setLocalData(DEVICES_KEY, devices);
+
+    if (isFirebaseActive && db) {
+      deleteDoc(doc(db, "devices", id)).catch(e => console.error("Firestore deleteDevice error:", e));
+    }
     return true;
   },
 
   clearAllDevices: async () => {
-    setLocalData(CLEARED_KEY, true);
     setLocalData(DEVICES_KEY, []);
     setLocalData(INSPECTIONS_KEY, {});
 
     if (isFirebaseActive && db) {
       try {
         const devSnap = await getDocs(collection(db, "devices"));
-        for (const d of devSnap.docs) {
-          await deleteDoc(doc(db, "devices", d.id));
+        if (!devSnap.empty) {
+          const batch = writeBatch(db);
+          devSnap.docs.forEach(d => batch.delete(doc(db, "devices", d.id)));
+          await batch.commit();
         }
 
         const insSnap = await getDocs(collection(db, "inspections"));
-        for (const i of insSnap.docs) {
-          await deleteDoc(doc(db, "inspections", i.id));
+        if (!insSnap.empty) {
+          const batchIns = writeBatch(db);
+          insSnap.docs.forEach(i => batchIns.delete(doc(db, "inspections", i.id)));
+          await batchIns.commit();
         }
       } catch (e) {
         console.error("Error clearing Firestore collections:", e);
@@ -260,16 +256,17 @@ export const deviceService = {
   },
 
   importCSVDevices: async (importedList, targetAcademicYear) => {
-    const devices = await deviceService.getAllDevices();
+    const devices = getLocalData(DEVICES_KEY, []);
     let addedCount = 0;
     let updatedCount = 0;
     const errors = [];
 
-    for (let index = 0; index < importedList.length; index++) {
-      const row = importedList[index];
+    const batch = (isFirebaseActive && db) ? writeBatch(db) : null;
+
+    importedList.forEach((row, index) => {
       if (!row.serial_no || !row.first_name || !row.last_name) {
         errors.push(`แถวที่ ${index + 2}: ข้อมูลไม่ครบถ้วน (ต้องระบุ Serial No., ชื่อ, และนามสกุล)`);
-        continue;
+        return;
       }
 
       const serialClean = String(row.serial_no).trim().toUpperCase();
@@ -298,9 +295,7 @@ export const deviceService = {
           updated_at: new Date().toISOString()
         };
         devices[existingIdx] = updated;
-        if (isFirebaseActive && db) {
-          await setDoc(doc(db, "devices", updated.id), updated);
-        }
+        if (batch) batch.set(doc(db, "devices", updated.id), updated);
         updatedCount++;
       } else {
         const newDev = {
@@ -309,11 +304,13 @@ export const deviceService = {
           created_at: new Date().toISOString()
         };
         devices.push(newDev);
-        if (isFirebaseActive && db) {
-          await setDoc(doc(db, "devices", newDev.id), newDev);
-        }
+        if (batch) batch.set(doc(db, "devices", newDev.id), newDev);
         addedCount++;
       }
+    });
+
+    if (batch) {
+      await batch.commit();
     }
 
     setLocalData(DEVICES_KEY, devices);
@@ -321,63 +318,59 @@ export const deviceService = {
   },
 
   getConfig: async () => {
-    if (isFirebaseActive && db) {
-      try {
-        const configDoc = await getDoc(doc(db, "settings", "config"));
-        if (configDoc.exists()) {
-          const data = configDoc.data();
-          setLocalData(CONFIG_KEY, data);
-          return data;
-        }
-      } catch (e) {
-        console.error("Firestore getConfig error:", e);
-      }
-    }
-    return getLocalData(CONFIG_KEY, {
+    const cached = getLocalData(CONFIG_KEY, {
       academic_years: ["2569"],
       current_academic_year: "2569",
       current_round: 1,
       admin_password: "nwsp1234"
     });
+
+    if (isFirebaseActive && db) {
+      getDoc(doc(db, "settings", "config")).then(configDoc => {
+        if (configDoc.exists()) {
+          setLocalData(CONFIG_KEY, configDoc.data());
+        }
+      }).catch(e => console.error("Firestore getConfig error:", e));
+    }
+    return cached;
   },
 
   updateConfig: async (newConfig) => {
     const current = await deviceService.getConfig();
     const updated = { ...current, ...newConfig };
     
+    setLocalData(CONFIG_KEY, updated);
+
     if (isFirebaseActive && db) {
-      await setDoc(doc(db, "settings", "config"), updated);
+      setDoc(doc(db, "settings", "config"), updated).catch(e => console.error("Firestore updateConfig error:", e));
     }
     
-    setLocalData(CONFIG_KEY, updated);
     return updated;
   },
 
   getRoomPins: async () => {
+    const cached = getLocalData(PINS_KEY, DEFAULT_ROOM_PINS);
+
     if (isFirebaseActive && db) {
-      try {
-        const pinsDoc = await getDoc(doc(db, "settings", "pins"));
+      getDoc(doc(db, "settings", "pins")).then(pinsDoc => {
         if (pinsDoc.exists()) {
-          const data = pinsDoc.data();
-          setLocalData(PINS_KEY, data);
-          return data;
+          setLocalData(PINS_KEY, pinsDoc.data());
         }
-      } catch (e) {
-        console.error("Firestore getRoomPins error:", e);
-      }
+      }).catch(e => console.error("Firestore getRoomPins error:", e));
     }
-    return getLocalData(PINS_KEY, DEFAULT_ROOM_PINS);
+    return cached;
   },
 
   updateRoomPin: async (roomKey, pin) => {
     const pins = await deviceService.getRoomPins();
     pins[roomKey] = pin;
     
+    setLocalData(PINS_KEY, pins);
+
     if (isFirebaseActive && db) {
-      await setDoc(doc(db, "settings", "pins"), pins);
+      setDoc(doc(db, "settings", "pins"), pins).catch(e => console.error("Firestore updateRoomPin error:", e));
     }
     
-    setLocalData(PINS_KEY, pins);
     return pins;
   },
 

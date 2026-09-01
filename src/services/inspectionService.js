@@ -4,13 +4,12 @@ import {
   collection, 
   doc, 
   getDocs, 
-  setDoc, 
-  query, 
-  where 
+  setDoc,
+  writeBatch 
 } from 'firebase/firestore';
 
-const INSPECTIONS_KEY = 'anywhere_tablet_inspections_v3';
-const LOGS_KEY = 'anywhere_tablet_access_logs_v3';
+const INSPECTIONS_KEY = 'anywhere_tablet_inspections_v4';
+const LOGS_KEY = 'anywhere_tablet_access_logs_v4';
 
 function getLocalInspections() {
   try {
@@ -63,45 +62,32 @@ export const inspectionService = {
       timestamp: new Date().toISOString()
     };
 
-    if (isFirebaseActive && db) {
-      try {
-        await setDoc(doc(db, "logs", newLog.id), newLog);
-      } catch (e) {
-        console.error("Firestore addLog error:", e);
-      }
-    }
-
     const logs = getLocalLogs();
     logs.unshift(newLog);
     setLocalLogs(logs);
+
+    if (isFirebaseActive && db) {
+      setDoc(doc(db, "logs", newLog.id), newLog).catch(e => console.error("Firestore addLog error:", e));
+    }
+
     return newLog;
   },
 
   // Get all audit logs (with filters)
   getLogs: async ({ academicYear, round, roomKey } = {}) => {
-    if (isFirebaseActive && db) {
-      try {
-        const snap = await getDocs(collection(db, "logs"));
-        let logs = snap.docs.map(d => d.data());
-        logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-        setLocalLogs(logs);
+    const cachedLogs = getLocalLogs();
 
-        if (academicYear) {
-          logs = logs.filter(l => (l.academic_year || "2569") === academicYear);
+    if (isFirebaseActive && db) {
+      getDocs(collection(db, "logs")).then(snap => {
+        if (!snap.empty) {
+          let logs = snap.docs.map(d => d.data());
+          logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+          setLocalLogs(logs);
         }
-        if (round) {
-          logs = logs.filter(l => Number(l.round) === Number(round));
-        }
-        if (roomKey && roomKey !== "ทั้งหมด") {
-          logs = logs.filter(l => l.room_key === roomKey);
-        }
-        return logs;
-      } catch (e) {
-        console.error("Firestore getLogs error, fallback to local:", e);
-      }
+      }).catch(e => console.error("Firestore getLogs background error:", e));
     }
 
-    let logs = getLocalLogs();
+    let logs = cachedLogs;
     if (academicYear) {
       logs = logs.filter(l => (l.academic_year || "2569") === academicYear);
     }
@@ -128,36 +114,24 @@ export const inspectionService = {
 
   // Get all inspection records for a given year & round
   getInspections: async (academicYear, round) => {
-    await initStoreIfEmpty();
+    initStoreIfEmpty();
+    const allLocal = getLocalInspections();
 
     if (isFirebaseActive && db) {
-      try {
-        const snap = await getDocs(collection(db, "inspections"));
-        const result = {};
-        const allLocal = getLocalInspections();
-
-        snap.docs.forEach(d => {
-          const record = d.data();
-          allLocal[d.id] = record;
-          if (
-            (academicYear ? record.academic_year === academicYear : true) &&
-            (round ? Number(record.round) === Number(round) : true)
-          ) {
-            result[record.serial_no] = record;
-          }
-        });
-
-        setLocalInspections(allLocal);
-        return result;
-      } catch (e) {
-        console.error("Firestore getInspections error, fallback to local:", e);
-      }
+      getDocs(collection(db, "inspections")).then(snap => {
+        if (!snap.empty) {
+          const freshLocal = { ...allLocal };
+          snap.docs.forEach(d => {
+            freshLocal[d.id] = d.data();
+          });
+          setLocalInspections(freshLocal);
+        }
+      }).catch(e => console.error("Firestore getInspections background sync error:", e));
     }
 
-    const all = getLocalInspections();
     const result = {};
-    Object.keys(all).forEach(key => {
-      const record = all[key];
+    Object.keys(allLocal).forEach(key => {
+      const record = allLocal[key];
       if (
         (academicYear ? record.academic_year === academicYear : true) &&
         (round ? Number(record.round) === Number(round) : true)
@@ -169,36 +143,12 @@ export const inspectionService = {
     return result;
   },
 
-  // Save single device inspection
-  saveSingleInspection: async ({ academicYear, round, serial_no, device_id, items, inspector }) => {
-    const key = `${academicYear}-R${round}-${serial_no}`;
-
-    const record = {
-      id: key,
-      academic_year: academicYear,
-      round: Number(round),
-      serial_no,
-      device_id,
-      inspector: inspector || "ครูที่ปรึกษา",
-      inspected_at: new Date().toISOString(),
-      items: items
-    };
-
-    if (isFirebaseActive && db) {
-      await setDoc(doc(db, "inspections", key), record);
-    }
-
-    const all = getLocalInspections();
-    all[key] = record;
-    setLocalInspections(all);
-    return record;
-  },
-
-  // Batch save room inspection
+  // Batch save room inspection (Lightning Fast with writeBatch)
   saveBatchInspection: async ({ academicYear, round, roomKey, recordsList, inspector }) => {
     const all = getLocalInspections();
+    const batch = (isFirebaseActive && db) ? writeBatch(db) : null;
     
-    for (const item of recordsList) {
+    recordsList.forEach(item => {
       const key = `${academicYear}-R${round}-${item.serial_no}`;
       const rec = {
         id: key,
@@ -212,12 +162,16 @@ export const inspectionService = {
       };
 
       all[key] = rec;
-      if (isFirebaseActive && db) {
-        await setDoc(doc(db, "inspections", key), rec);
+      if (batch) {
+        batch.set(doc(db, "inspections", key), rec);
       }
-    }
+    });
 
     setLocalInspections(all);
+
+    if (batch) {
+      await batch.commit(); // Atomic fast commit in 1 single HTTP request!
+    }
 
     // Record audit log
     await inspectionService.addLog({
