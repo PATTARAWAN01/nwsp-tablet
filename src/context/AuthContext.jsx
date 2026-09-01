@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { deviceService } from '../services/deviceService';
+import { inspectionService } from '../services/inspectionService';
 
 const AuthContext = createContext();
 
@@ -48,6 +49,18 @@ export function AuthProvider({ children }) {
     if (String(password).trim() === String(validPass).trim()) {
       setIsAdmin(true);
       localStorage.setItem('anywhere_admin_logged', 'true');
+
+      // Record audit log for Admin Login
+      inspectionService.addLog({
+        academicYear: config.current_academic_year,
+        round: config.current_round,
+        roomKey: "Admin",
+        teacherName: "ผู้ดูแลระบบ (Admin)",
+        action: "เข้าสู่ระบบหลังบ้าน (Admin Login)",
+        deviceCount: 0,
+        details: "ปลดล็อกรหัสผ่านเข้าสู่ระบบหลังบ้าน Admin"
+      }).catch(e => console.error("Log error:", e));
+
       return { success: true };
     }
     return { success: false, message: "รหัสผ่านไม่ถูกต้อง (รหัสผ่านเริ่มต้นคือ nwsp1234)" };
@@ -65,15 +78,28 @@ export function AuthProvider({ children }) {
     const isValid = await deviceService.verifyRoomPin(roomKey, pin);
     
     if (isValid) {
+      const formattedName = teacherName ? teacherName.trim() : "ครูประจำชั้น";
       const sessionData = { 
         grade, 
         room, 
         roomKey, 
-        teacherName: teacherName ? teacherName.trim() : "ครูประจำชั้น",
+        teacherName: formattedName,
         timestamp: Date.now() 
       };
       setTeacherSession(sessionData);
       localStorage.setItem('anywhere_teacher_session', JSON.stringify(sessionData));
+
+      // Record audit log for Teacher PIN Login
+      inspectionService.addLog({
+        academicYear: config.current_academic_year,
+        round: config.current_round,
+        roomKey: roomKey,
+        teacherName: formattedName,
+        action: `ครูเข้าสู่ระบบตรวจเช็ค (${roomKey})`,
+        deviceCount: 0,
+        details: `ปลดล็อกรหัส PIN ประจำห้อง ${roomKey} เข้าสู่หน้าตรวจเช็ค`
+      }).catch(e => console.error("Log error:", e));
+
       return { success: true };
     }
     return { success: false, message: `รหัส PIN ของห้อง ${roomKey} ไม่ถูกต้อง` };

@@ -23,8 +23,10 @@ import {
   History,
   UserCheck,
   AlertCircle,
-  XCircle
+  XCircle,
+  RefreshCw
 } from 'lucide-react';
+import { DEFAULT_ROOM_PINS } from '../services/sampleData';
 
 export default function AdminManagement() {
   const { isAdmin, loginAdmin, logoutAdmin, config, updateGlobalSettings } = useAuth();
@@ -66,6 +68,7 @@ export default function AdminManagement() {
   const [roomPins, setRoomPins] = useState({});
   const [auditLogs, setAuditLogs] = useState([]);
   const [logFilterRoom, setLogFilterRoom] = useState("ทั้งหมด");
+  const [logSearchQuery, setLogSearchQuery] = useState("");
 
   // Popup Modal Alert
   const [modalPopup, setModalPopup] = useState(null);
@@ -80,10 +83,8 @@ export default function AdminManagement() {
       const pins = await deviceService.getRoomPins();
       setRoomPins(pins);
 
-      const logs = await inspectionService.getLogs({
-        academicYear: config.current_academic_year,
-        round: config.current_round
-      });
+      // Fetch ALL audit logs (Teacher PIN logins, Teacher saves, Admin logins & actions)
+      const logs = await inspectionService.getLogs({});
       setAuditLogs(logs);
     } catch (e) {
       console.error(e);
@@ -106,6 +107,7 @@ export default function AdminManagement() {
       setLoginErr(res.message);
     } else {
       setPasswordInput("");
+      await loadAdminData();
     }
   };
 
@@ -114,6 +116,17 @@ export default function AdminManagement() {
     try {
       if (editingId) {
         await deviceService.updateDevice(editingId, formData);
+        
+        await inspectionService.addLog({
+          academicYear: config.current_academic_year,
+          round: config.current_round,
+          roomKey: "Admin",
+          teacherName: "ผู้ดูแลระบบ (Admin)",
+          action: "แก้ไขข้อมูลอุปกรณ์",
+          deviceCount: 1,
+          details: `แก้ไขข้อมูล Serial No. ${formData.serial_no} (${formData.prefix || ''}${formData.first_name} ${formData.last_name})`
+        });
+
         setModalPopup({
           type: 'success',
           title: 'อัปเดตข้อมูลสำเร็จ! 🎉',
@@ -121,6 +134,17 @@ export default function AdminManagement() {
         });
       } else {
         await deviceService.addDevice(formData);
+
+        await inspectionService.addLog({
+          academicYear: config.current_academic_year,
+          round: config.current_round,
+          roomKey: "Admin",
+          teacherName: "ผู้ดูแลระบบ (Admin)",
+          action: "เพิ่มอุปกรณ์ใหม่",
+          deviceCount: 1,
+          details: `เพิ่มอุปกรณ์ Serial No. ${formData.serial_no} ของ ${formData.prefix || ''}${formData.first_name} ${formData.last_name}`
+        });
+
         setModalPopup({
           type: 'success',
           title: 'เพิ่มข้อมูลอุปกรณ์สำเร็จ! 🎉',
@@ -175,6 +199,17 @@ export default function AdminManagement() {
   const handleDelete = async (id, name) => {
     if (window.confirm(`ยืนยันการลบข้อมูลอุปกรณ์ของ ${name}?`)) {
       await deviceService.deleteDevice(id);
+
+      await inspectionService.addLog({
+        academicYear: config.current_academic_year,
+        round: config.current_round,
+        roomKey: "Admin",
+        teacherName: "ผู้ดูแลระบบ (Admin)",
+        action: "ลบอุปกรณ์",
+        deviceCount: 1,
+        details: `ลบข้อมูลอุปกรณ์ของ ${name}`
+      });
+
       setModalPopup({
         type: 'success',
         title: 'ลบข้อมูลสำเร็จ!',
@@ -187,6 +222,17 @@ export default function AdminManagement() {
   const handleClearAllData = async () => {
     if (window.confirm("⚠️ ยืนยันการลบข้อมูลตัวอย่างทั้งหมดออกจากระบบใช่หรือไม่?\n(ระบบจะเริ่มจากฐานข้อมูลว่างเปล่า พร้อมสำหรับนำเข้าข้อมูลจริง)")) {
       await deviceService.clearAllDevices();
+
+      await inspectionService.addLog({
+        academicYear: config.current_academic_year,
+        round: config.current_round,
+        roomKey: "Admin",
+        teacherName: "ผู้ดูแลระบบ (Admin)",
+        action: "ล้างข้อมูลตัวอย่างทั้งหมด",
+        deviceCount: devices.length,
+        details: "ล้างข้อมูลอุปกรณ์และการตรวจเช็คทั้งหมดในระบบ"
+      });
+
       setModalPopup({
         type: 'success',
         title: 'ล้างข้อมูลสำเร็จ!',
@@ -223,6 +269,17 @@ export default function AdminManagement() {
     try {
       const res = await deviceService.importCSVDevices(csvParsed, csvTargetYear);
       setImportStatus(res);
+
+      await inspectionService.addLog({
+        academicYear: csvTargetYear,
+        round: config.current_round,
+        roomKey: "Admin",
+        teacherName: "ผู้ดูแลระบบ (Admin)",
+        action: "นำเข้าข้อมูล CSV",
+        deviceCount: res.addedCount + res.updatedCount,
+        details: `นำเข้าข้อมูลอุปกรณ์ใหม่ ${res.addedCount} เครื่อง, อัปเดต ${res.updatedCount} เครื่อง`
+      });
+
       setModalPopup({
         type: 'success',
         title: 'นำเข้าข้อมูล CSV สำเร็จ! 🎉',
@@ -270,6 +327,16 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
       adminPassword: newPassInput ? newPassInput.trim() : config.admin_password
     });
 
+    await inspectionService.addLog({
+      academicYear: config.current_academic_year,
+      round: config.current_round,
+      roomKey: "Admin",
+      teacherName: "ผู้ดูแลระบบ (Admin)",
+      action: "อัปเดตการตั้งค่าระบบ",
+      deviceCount: 0,
+      details: `อัปเดตตั้งค่าปีการศึกษา / รอบการตรวจที่ ${config.current_round}`
+    });
+
     setModalPopup({
       type: 'success',
       title: 'บันทึกการตั้งค่าสำเร็จ! 🎉',
@@ -283,6 +350,16 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
   const handlePinChange = async (roomKey, pinValue) => {
     const updatedPins = await deviceService.updateRoomPin(roomKey, pinValue);
     setRoomPins({ ...updatedPins });
+
+    await inspectionService.addLog({
+      academicYear: config.current_academic_year,
+      round: config.current_round,
+      roomKey: roomKey,
+      teacherName: "ผู้ดูแลระบบ (Admin)",
+      action: "เปลี่ยนรหัส PIN ประจำห้อง",
+      deviceCount: 0,
+      details: `อัปเดตรหัส PIN ประจำห้อง ${roomKey}`
+    });
   };
 
   const filteredDevices = devices.filter(d => {
@@ -303,6 +380,15 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
 
   const filteredLogs = auditLogs.filter(l => {
     if (logFilterRoom !== "ทั้งหมด" && l.room_key !== logFilterRoom) return false;
+    if (logSearchQuery) {
+      const q = logSearchQuery.toLowerCase();
+      return (
+        (l.teacher_name && l.teacher_name.toLowerCase().includes(q)) ||
+        (l.action && l.action.toLowerCase().includes(q)) ||
+        (l.details && l.details.toLowerCase().includes(q)) ||
+        (l.room_key && l.room_key.toLowerCase().includes(q))
+      );
+    }
     return true;
   });
 
@@ -409,7 +495,7 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
         </button>
 
         <button
-          onClick={() => setAdminSubTab('logs')}
+          onClick={() => { setAdminSubTab('logs'); loadAdminData(); }}
           className={`flex items-center space-x-2 px-4 py-2.5 rounded-2xl text-xs font-extrabold transition-all ${
             adminSubTab === 'logs'
               ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-400/20'
@@ -678,68 +764,101 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
       {/* --- SUB TAB 3: AUDIT LOGS --- */}
       {adminSubTab === 'logs' && (
         <div className="modern-glass rounded-3xl p-6 border border-white/80 shadow-sm space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/60">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200/60">
             <div>
               <h3 className="text-lg font-bold font-prompt text-slate-900">
-                ประวัติและลอคการเข้าใช้งาน (Audit Logs & Entry History)
+                ประวัติและลอคการเข้าใช้งาน (Audit Logs & Login History)
               </h3>
               <p className="text-xs text-slate-500 font-medium mt-0.5">
-                ติดตามสถิติและประวัติว่าครูท่านใดเข้ามาบันทึกผลการตรวจเช็คในแต่ละห้อง
+                ติดตามสถิติและประวัติว่าครูท่านใดเข้าตรวจเช็ค หรือ Admin ทำรายการอะไรเมื่อไหร่
               </p>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <span className="text-xs font-bold text-slate-600">กรองห้อง:</span>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="ค้นชื่อครู, การทำรายการ..."
+                  value={logSearchQuery}
+                  onChange={(e) => setLogSearchQuery(e.target.value)}
+                  className="pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
               <select
                 value={logFilterRoom}
                 onChange={(e) => setLogFilterRoom(e.target.value)}
-                className="bg-white border border-slate-200 text-slate-800 text-xs px-3 py-2 rounded-xl font-bold focus:outline-none"
+                className="bg-white border border-slate-200 text-slate-800 text-xs px-3 py-1.5 rounded-xl font-bold focus:outline-none cursor-pointer"
               >
-                <option value="ทั้งหมด">ทุกห้องเรียน</option>
+                <option value="ทั้งหมด">ทุกห้อง/ทั้งหมด</option>
+                <option value="Admin"> Admin</option>
                 {Object.keys(DEFAULT_ROOM_PINS || {}).map(rk => (
                   <option key={rk} value={rk}>ห้อง {rk}</option>
                 ))}
               </select>
+
+              <button
+                onClick={loadAdminData}
+                className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors"
+                title="รีเฟรชประวัติลอค"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
 
           {filteredLogs.length === 0 ? (
             <div className="p-10 text-center text-slate-500">
               <History className="w-10 h-10 text-slate-400 mx-auto mb-2 opacity-60" />
-              <p className="font-bold text-slate-700">ยังไม่มีประวัติการบันทึกข้อมูล</p>
-              <p className="text-xs text-slate-400">เมื่อครูผู้สอนบันทึกผลการตรวจเช็ค ประวัติและชื่อจะปรากฏในหน้านี้</p>
+              <p className="font-bold text-slate-700">ไม่พบประวัติการเข้าใช้งาน</p>
+              <p className="text-xs text-slate-400">เมื่อครูหรือ Admin ปลดล็อก PIN / เข้าใช้งาน ประวัติจะถูกบันทึกที่นี่อัตโนมัติ</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs text-slate-700">
                 <thead className="bg-slate-50 text-slate-900 font-bold uppercase border-b border-slate-200">
                   <tr>
-                    <th className="p-3">วัน-เวลาที่เข้าทำรายการ</th>
-                    <th className="p-3 text-blue-900">ห้องเรียน</th>
-                    <th className="p-3 text-slate-900 font-extrabold">ชื่อ-นามสกุล ครูผู้ตรวจเช็ค</th>
+                    <th className="p-3">วัน-เวลาที่ทำรายการ</th>
+                    <th className="p-3 text-blue-900">ห้อง/โหมด</th>
+                    <th className="p-3 text-slate-900 font-extrabold">ชื่อ-นามสกุล ผู้ทำรายการ</th>
                     <th className="p-3">การทำรายการ</th>
-                    <th className="p-3 text-center">จำนวนอุปกรณ์</th>
+                    <th className="p-3">รายละเอียดเพิ่มเติม</th>
+                    <th className="p-3 text-center">จำนวนเครื่อง</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white/60">
-                  {filteredLogs.map((log) => (
-                    <tr key={log.id} className="hover:bg-blue-50/30 transition-colors">
-                      <td className="p-3 font-mono text-slate-500">
-                        {new Date(log.timestamp).toLocaleString('th-TH')}
-                      </td>
-                      <td className="p-3 font-extrabold text-blue-900 font-prompt">
-                        ห้อง {log.room_key}
-                      </td>
-                      <td className="p-3 font-bold text-slate-900 font-prompt text-sm">
-                        <span className="inline-flex items-center space-x-1.5 bg-blue-50 text-blue-900 px-2.5 py-1 rounded-xl border border-blue-200">
-                          <UserCheck className="w-3.5 h-3.5 text-blue-600 mr-1" />
-                          {log.teacher_name}
-                        </span>
-                      </td>
-                      <td className="p-3 font-semibold text-slate-700">{log.action}</td>
-                      <td className="p-3 text-center font-mono font-extrabold text-slate-900">{log.device_count} เครื่อง</td>
-                    </tr>
-                  ))}
+                  {filteredLogs.map((log) => {
+                    const isAdminLog = log.room_key === 'Admin' || log.teacher_name?.includes('Admin');
+
+                    return (
+                      <tr key={log.id} className="hover:bg-blue-50/30 transition-colors">
+                        <td className="p-3 font-mono text-slate-500 whitespace-nowrap">
+                          {new Date(log.timestamp).toLocaleString('th-TH')}
+                        </td>
+                        <td className="p-3 font-extrabold text-blue-900 font-prompt whitespace-nowrap">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold ${
+                            isAdminLog ? 'bg-amber-100 text-amber-950 border border-amber-300' : 'bg-blue-100 text-blue-900 border border-blue-200'
+                          }`}>
+                            {log.room_key === 'Admin' ? 'Admin' : `ห้อง ${log.room_key}`}
+                          </span>
+                        </td>
+                        <td className="p-3 font-bold text-slate-900 font-prompt text-sm whitespace-nowrap">
+                          <span className={`inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-xl border ${
+                            isAdminLog ? 'bg-amber-50 text-amber-900 border-amber-200' : 'bg-blue-50 text-blue-900 border-blue-200'
+                          }`}>
+                            <UserCheck className={`w-3.5 h-3.5 ${isAdminLog ? 'text-amber-600' : 'text-blue-600'} mr-1`} />
+                            {log.teacher_name}
+                          </span>
+                        </td>
+                        <td className="p-3 font-bold text-slate-800 whitespace-nowrap">{log.action}</td>
+                        <td className="p-3 text-slate-600 font-medium">{log.details || '-'}</td>
+                        <td className="p-3 text-center font-mono font-extrabold text-slate-900 whitespace-nowrap">
+                          {log.device_count > 0 ? `${log.device_count} เครื่อง` : '-'}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1027,7 +1146,7 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
       {/* POPUP NOTIFICATION MODAL */}
       {modalPopup && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="modern-glass bg-white/95 rounded-3xl max-w-md w-full p-6 text-center space-y-4 border border-white shadow-2xl">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 text-center space-y-4 border-2 border-slate-200 shadow-2xl">
             <div className={`w-16 h-16 rounded-3xl flex items-center justify-center mx-auto border shadow-xs ${
               modalPopup.type === 'success' 
                 ? 'bg-emerald-100 text-emerald-700 border-emerald-200' 
