@@ -1,4 +1,13 @@
 import { initStoreIfEmpty } from './deviceService';
+import { db, isFirebaseActive } from '../firebase';
+import { 
+  collection, 
+  doc, 
+  getDocs, 
+  setDoc, 
+  query, 
+  where 
+} from 'firebase/firestore';
 
 const INSPECTIONS_KEY = 'anywhere_tablet_inspections_v3';
 const LOGS_KEY = 'anywhere_tablet_access_logs_v3';
@@ -42,7 +51,6 @@ function setLocalLogs(logs) {
 export const inspectionService = {
   // Add an audit log entry
   addLog: async ({ academicYear, round, roomKey, teacherName, action, deviceCount, details }) => {
-    const logs = getLocalLogs();
     const newLog = {
       id: `LOG-${Date.now()}-${Math.floor(Math.random()*1000)}`,
       academic_year: academicYear,
@@ -54,13 +62,45 @@ export const inspectionService = {
       details: details || "",
       timestamp: new Date().toISOString()
     };
-    logs.unshift(newLog); // Put newest first
+
+    if (isFirebaseActive && db) {
+      try {
+        await setDoc(doc(db, "logs", newLog.id), newLog);
+      } catch (e) {
+        console.error("Firestore addLog error:", e);
+      }
+    }
+
+    const logs = getLocalLogs();
+    logs.unshift(newLog);
     setLocalLogs(logs);
     return newLog;
   },
 
   // Get all audit logs (with filters)
   getLogs: async ({ academicYear, round, roomKey } = {}) => {
+    if (isFirebaseActive && db) {
+      try {
+        const snap = await getDocs(collection(db, "logs"));
+        let logs = snap.docs.map(d => d.data());
+        logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        setLocalLogs(logs);
+
+        if (academicYear) {
+          logs = logs.filter(l => (l.academic_year || "2569") === academicYear);
+        }
+        if (round) {
+          logs = logs.filter(l => Number(l.round) === Number(round));
+        }
+        if (roomKey && roomKey !== "ทั้งหมด") {
+          logs = logs.filter(l => l.room_key === roomKey);
+        }
+        return logs;
+      } catch (e) {
+        console.error("Firestore getLogs error, fallback to local:", e);
+      }
+    }
+
     let logs = getLocalLogs();
     if (academicYear) {
       logs = logs.filter(l => (l.academic_year || "2569") === academicYear);
@@ -88,10 +128,34 @@ export const inspectionService = {
 
   // Get all inspection records for a given year & round
   getInspections: async (academicYear, round) => {
-    initStoreIfEmpty();
+    await initStoreIfEmpty();
+
+    if (isFirebaseActive && db) {
+      try {
+        const snap = await getDocs(collection(db, "inspections"));
+        const result = {};
+        const allLocal = getLocalInspections();
+
+        snap.docs.forEach(d => {
+          const record = d.data();
+          allLocal[d.id] = record;
+          if (
+            (academicYear ? record.academic_year === academicYear : true) &&
+            (round ? Number(record.round) === Number(round) : true)
+          ) {
+            result[record.serial_no] = record;
+          }
+        });
+
+        setLocalInspections(allLocal);
+        return result;
+      } catch (e) {
+        console.error("Firestore getInspections error, fallback to local:", e);
+      }
+    }
+
     const all = getLocalInspections();
     const result = {};
-    
     Object.keys(all).forEach(key => {
       const record = all[key];
       if (
@@ -107,7 +171,6 @@ export const inspectionService = {
 
   // Save single device inspection
   saveSingleInspection: async ({ academicYear, round, serial_no, device_id, items, inspector }) => {
-    const all = getLocalInspections();
     const key = `${academicYear}-R${round}-${serial_no}`;
 
     const record = {
@@ -118,21 +181,26 @@ export const inspectionService = {
       device_id,
       inspector: inspector || "ครูที่ปรึกษา",
       inspected_at: new Date().toISOString(),
-      items: items // { tablet: { status, note }, spen: { status, note }, ... }
+      items: items
     };
 
+    if (isFirebaseActive && db) {
+      await setDoc(doc(db, "inspections", key), record);
+    }
+
+    const all = getLocalInspections();
     all[key] = record;
     setLocalInspections(all);
     return record;
   },
 
-  // Batch save room inspection (e.g. Mark All Normal for a room or multi-device submission)
+  // Batch save room inspection
   saveBatchInspection: async ({ academicYear, round, roomKey, recordsList, inspector }) => {
     const all = getLocalInspections();
     
-    recordsList.forEach(item => {
+    for (const item of recordsList) {
       const key = `${academicYear}-R${round}-${item.serial_no}`;
-      all[key] = {
+      const rec = {
         id: key,
         academic_year: academicYear,
         round: Number(round),
@@ -142,7 +210,12 @@ export const inspectionService = {
         inspected_at: new Date().toISOString(),
         items: item.items
       };
-    });
+
+      all[key] = rec;
+      if (isFirebaseActive && db) {
+        await setDoc(doc(db, "inspections", key), rec);
+      }
+    }
 
     setLocalInspections(all);
 
