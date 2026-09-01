@@ -14,8 +14,8 @@ import {
   Sparkles,
   Calendar,
   Filter,
-  PieChartIcon,
-  BarChart2
+  BarChart2,
+  GraduationCap
 } from 'lucide-react';
 import { 
   PieChart, 
@@ -40,9 +40,6 @@ export default function PublicDashboard() {
   const [viewMode, setViewMode] = useState('round'); 
   const [selectedGrade, setSelectedGrade] = useState("ทั้งหมด");
   const [selectedRoom, setSelectedRoom] = useState("ทั้งหมด");
-
-  // Grade chart view switcher: 'donut' (default) vs 'bar'
-  const [gradeChartView, setGradeChartView] = useState('donut');
 
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
@@ -74,7 +71,6 @@ export default function PublicDashboard() {
       setAnnualStats(annSt);
 
       // 3. Grade level comparison data
-      const grades = ['ม.4', 'ม.5', 'ม.6', 'ครู'];
       const insMap = await inspectionService.getInspections(config.current_academic_year, config.current_round);
       
       const gradeMap = {
@@ -137,24 +133,6 @@ export default function PublicDashboard() {
     { name: 'ยังไม่ได้ตรวจเช็ค', value: stats.uncheckedCount, color: '#CBD5E1' }
   ];
 
-  // Data for Grade Level Donut Chart
-  const GRADE_COLORS = {
-    'ชั้น ม.4': '#3B82F6',
-    'ชั้น ม.5': '#6366F1',
-    'ชั้น ม.6': '#8B5CF6',
-    'ครูผู้สอน': '#F59E0B'
-  };
-
-  const gradeDonutData = gradeComparisonData.map(g => ({
-    name: g.name,
-    value: g.checked > 0 ? g.checked : 0,
-    normal: g.normal,
-    damaged: g.damaged,
-    color: GRADE_COLORS[g.name] || '#64748B'
-  })).filter(g => g.value > 0);
-
-  const totalGradeChecked = gradeDonutData.reduce((acc, curr) => acc + curr.value, 0);
-
   // Data for 6 Category Breakdown Progress Bars
   const totalDamagedItemsCount = Object.values(stats.damagedBreakdown).reduce((a, b) => a + b, 0);
 
@@ -180,6 +158,35 @@ export default function PublicDashboard() {
   ] : [];
 
   const maxAnnualDamagedCount = Math.max(...annualCategoryProgressList.map(c => c.count), 1);
+
+  // Custom Recharts Tooltip for Modern Bar Chart
+  const CustomBarTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className="bg-slate-900/95 text-white p-3.5 rounded-2xl shadow-xl border border-slate-700 text-xs font-sarabun space-y-1.5 min-w-[160px]">
+          <p className="font-extrabold font-prompt text-amber-300 border-b border-slate-700 pb-1 text-sm">
+            {label}
+          </p>
+          <div className="space-y-1 text-[11px]">
+            <div className="flex justify-between font-bold text-emerald-400">
+              <span>ปกติ:</span>
+              <span>{data.normal} เครื่อง</span>
+            </div>
+            <div className="flex justify-between font-bold text-rose-400">
+              <span>ชำรุด:</span>
+              <span>{data.damaged} เครื่อง</span>
+            </div>
+            <div className="flex justify-between font-extrabold text-blue-300 pt-1 border-t border-slate-700">
+              <span>ตรวจเช็คแล้ว:</span>
+              <span>{data.checked} / {data.total} เครื่อง</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <div className="space-y-6">
@@ -406,110 +413,103 @@ export default function PublicDashboard() {
 
           </div>
 
-          {/* Interactive Charts Row 2: Modern Donut Chart / Bar Chart Toggle for Grade Comparison */}
-          <div className="modern-glass-card rounded-3xl p-6 border border-white/80 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                  <TrendingUp className="w-5 h-5" />
+          {/* Interactive Charts Row 2: Redesigned High-End Modern Bar Chart */}
+          <div className="modern-glass-card rounded-3xl p-6 border border-white/80 shadow-md space-y-5">
+            
+            {/* Header & Grade Level Quick Summary Cards */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-slate-200/80">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-blue-500 text-white flex items-center justify-center shadow-md shadow-indigo-500/20">
+                  <BarChart2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-extrabold text-slate-900 font-prompt">
+                  <h3 className="text-base sm:text-lg font-extrabold text-slate-900 font-prompt">
                     เปรียบเทียบการตรวจเช็คแยกตามระดับชั้น (ม.4 - ม.6 & ครู)
                   </h3>
-                  <p className="text-xs text-slate-500">สัดส่วนและจำนวนเครื่องที่ตรวจแล้ว แยกตามระดับชั้น</p>
+                  <p className="text-xs text-slate-500">
+                    แสดงจำนวนเครื่องที่ตรวจแล้ว แยกตามสถานะปกติ และ ชำรุด (รอบที่ {config.current_round})
+                  </p>
                 </div>
               </div>
 
-              {/* Donut Chart vs Bar Chart View Mode Toggle */}
-              <div className="flex items-center space-x-1 p-1 bg-slate-100 rounded-xl border border-slate-200 self-start sm:self-auto">
-                <button
-                  onClick={() => setGradeChartView('donut')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all flex items-center space-x-1.5 ${
-                    gradeChartView === 'donut'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <PieChartIcon className="w-3.5 h-3.5" />
-                  <span>🍩 กราฟโดนัท (สวยงาม)</span>
-                </button>
-
-                <button
-                  onClick={() => setGradeChartView('bar')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all flex items-center space-x-1.5 ${
-                    gradeChartView === 'bar'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <BarChart2 className="w-3.5 h-3.5" />
-                  <span>📊 กราฟแท่ง</span>
-                </button>
+              {/* Quick Grade Summary Pills */}
+              <div className="flex flex-wrap gap-2 text-xs">
+                {gradeComparisonData.map((g, idx) => (
+                  <div key={idx} className="px-3 py-1.5 bg-slate-100/80 border border-slate-200 rounded-xl flex items-center space-x-1.5 font-sarabun">
+                    <span className="font-extrabold text-slate-800">{g.name}:</span>
+                    <span className="font-mono font-bold text-blue-700">{g.checked}/{g.total}</span>
+                    <span className="text-[10px] px-1.5 py-0.2 bg-blue-100 text-blue-800 rounded-full font-bold">
+                      {g.percent}%
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* Render Donut Chart View (Default) */}
-            {gradeChartView === 'donut' ? (
-              <div className="h-72 relative flex items-center justify-center">
-                {gradeDonutData.length === 0 ? (
-                  <div className="text-center p-8 text-slate-400 font-medium">
-                    ยังไม่มีการบันทึกตรวจเช็คอุปกรณ์ในระดับชั้นใดๆ
-                  </div>
-                ) : (
-                  <>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={gradeDonutData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={70}
-                          outerRadius={105}
-                          paddingAngle={6}
-                          dataKey="value"
-                          animationDuration={1200}
-                        >
-                          {gradeDonutData.map((entry, index) => (
-                            <Cell key={`cell-grade-${index}`} fill={entry.color} stroke="none" />
-                          ))}
-                        </Pie>
-                        <Tooltip 
-                          contentStyle={{ backgroundColor: '#0F172A', color: '#fff', borderRadius: '12px', border: 'none', fontSize: '12px' }}
-                          formatter={(value, name, props) => [
-                            `${value} เครื่อง (ปกติ: ${props.payload.normal}, ชำรุด: ${props.payload.damaged})`, 
-                            name
-                          ]}
-                        />
-                        <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                      </PieChart>
-                    </ResponsiveContainer>
+            {/* Redesigned Recharts Bar Chart with Custom SVG Gradient Bars */}
+            <div className="h-72 sm:h-80 pt-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart 
+                  data={gradeComparisonData} 
+                  margin={{ top: 25, right: 25, left: -15, bottom: 10 }}
+                  barCategoryGap="25%"
+                >
+                  <defs>
+                    <linearGradient id="barGreen" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#10B981" stopOpacity={0.95} />
+                      <stop offset="100%" stopColor="#059669" stopOpacity={0.95} />
+                    </linearGradient>
+                    <linearGradient id="barRed" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#F43F5E" stopOpacity={0.95} />
+                      <stop offset="100%" stopColor="#E11D48" stopOpacity={0.95} />
+                    </linearGradient>
+                  </defs>
 
-                    <div className="absolute flex flex-col items-center justify-center pointer-events-none mb-6">
-                      <span className="text-2xl font-extrabold text-slate-900 font-mono">{totalGradeChecked}</span>
-                      <span className="text-[10px] text-slate-400 font-bold uppercase">ตรวจแล้วรวม</span>
-                    </div>
-                  </>
-                )}
-              </div>
-            ) : (
-              /* Render Bar Chart View */
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={gradeComparisonData} margin={{ top: 20, right: 20, left: -20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                    <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#334155', fontWeight: 600 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11, fill: '#64748B' }} axisLine={false} tickLine={false} />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#0F172A', color: '#fff', borderRadius: '12px', border: 'none', fontSize: '12px' }}
-                    />
-                    <Legend verticalAlign="top" height={36} iconType="circle" />
-                    <Bar dataKey="normal" name="ปกติ" fill="#10B981" radius={[6, 6, 0, 0]} stackId="a" />
-                    <Bar dataKey="damaged" name="ชำรุด" fill="#EF4444" radius={[6, 6, 0, 0]} stackId="a" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
+                  <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#E2E8F0" />
+                  
+                  <XAxis 
+                    dataKey="name" 
+                    tick={{ fontSize: 13, fill: '#1E293B', fontWeight: 800, fontFamily: 'Prompt' }} 
+                    axisLine={{ stroke: '#CBD5E1', strokeWidth: 1.5 }} 
+                    tickLine={false} 
+                    dy={8}
+                  />
+                  
+                  <YAxis 
+                    tick={{ fontSize: 11, fill: '#64748B', fontWeight: 600 }} 
+                    axisLine={false} 
+                    tickLine={false}
+                    allowDecimals={false}
+                  />
+                  
+                  <Tooltip content={<CustomBarTooltip />} />
+                  
+                  <Legend 
+                    verticalAlign="top" 
+                    align="right"
+                    wrapperStyle={{ paddingBottom: '15px' }} 
+                    iconType="circle"
+                  />
+                  
+                  <Bar 
+                    dataKey="normal" 
+                    name="ปกติ (เครื่อง)" 
+                    fill="url(#barGreen)" 
+                    radius={[8, 8, 0, 0]} 
+                    stackId="a" 
+                    animationDuration={1000}
+                  />
+                  <Bar 
+                    dataKey="damaged" 
+                    name="ชำรุด (เครื่อง)" 
+                    fill="url(#barRed)" 
+                    radius={[8, 8, 0, 0]} 
+                    stackId="a" 
+                    animationDuration={1000}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
 
           {/* Table of Damaged Devices Log */}
