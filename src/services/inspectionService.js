@@ -160,7 +160,7 @@ export const inspectionService = {
     return true;
   },
 
-  // Compute dashboard summary stats
+  // Compute dashboard summary stats for a single round
   getDashboardStats: async (devicesList, academicYear, round) => {
     const inspections = await inspectionService.getInspections(academicYear, round);
     
@@ -230,6 +230,68 @@ export const inspectionService = {
       damagedPercent,
       damagedBreakdown,
       damagedDetailsList
+    };
+  },
+
+  // Compute annual summary stats across all 5 rounds
+  getAnnualDashboardStats: async (devicesList, academicYear) => {
+    const roundsData = [];
+    const annualDamagedBreakdown = {
+      tablet: 0,
+      spen: 0,
+      keyboard: 0,
+      cable_white: 0,
+      cable_black: 0,
+      adapter: 0
+    };
+    
+    let totalDevices = devicesList.length;
+
+    for (let r = 1; r <= 5; r++) {
+      const insMap = await inspectionService.getInspections(academicYear, r);
+      let checkedCount = 0;
+      let normalCount = 0;
+      let damagedCount = 0;
+
+      const roundDamagedBreakdown = {
+        tablet: 0, spen: 0, keyboard: 0, cable_white: 0, cable_black: 0, adapter: 0
+      };
+
+      devicesList.forEach(dev => {
+        const ins = insMap[dev.serial_no];
+        if (ins) {
+          checkedCount++;
+          const items = ins.items || {};
+          let isDamaged = false;
+          ['tablet', 'spen', 'keyboard', 'cable_white', 'cable_black', 'adapter'].forEach(cat => {
+            if (items[cat] && items[cat].status === 'damaged') {
+              isDamaged = true;
+              roundDamagedBreakdown[cat]++;
+              annualDamagedBreakdown[cat]++;
+            }
+          });
+          if (isDamaged) damagedCount++;
+          else normalCount++;
+        }
+      });
+
+      const progressPercent = totalDevices > 0 ? Math.round((checkedCount / totalDevices) * 100) : 0;
+
+      roundsData.push({
+        round: r,
+        name: `รอบที่ ${r}`,
+        checkedCount,
+        normalCount,
+        damagedCount,
+        progressPercent,
+        damagedBreakdown: roundDamagedBreakdown
+      });
+    }
+
+    return {
+      totalDevices,
+      roundsData,
+      annualDamagedBreakdown
     };
   }
 };
