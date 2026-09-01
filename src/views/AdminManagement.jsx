@@ -503,7 +503,7 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
           }`}
         >
           <History className="w-4 h-4" />
-          <span>ประวัติลอคการเข้าใช้งาน ({auditLogs.length})</span>
+          <span>ประวัติการเข้าใช้งานระบบ ({auditLogs.length})</span>
         </button>
 
         <button
@@ -767,7 +767,7 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200/60">
             <div>
               <h3 className="text-lg font-bold font-prompt text-slate-900">
-                ประวัติและลอคการเข้าใช้งาน (Audit Logs & Login History)
+                ประวัติการเข้าใช้งานระบบ (Audit Logs & Login History)
               </h3>
               <p className="text-xs text-slate-500 font-medium mt-0.5">
                 ติดตามสถิติและประวัติว่าครูท่านใดเข้าตรวจเช็ค หรือ Admin ทำรายการอะไรเมื่อไหร่
@@ -792,7 +792,7 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
                 className="bg-white border border-slate-200 text-slate-800 text-xs px-3 py-1.5 rounded-xl font-bold focus:outline-none cursor-pointer"
               >
                 <option value="ทั้งหมด">ทุกห้อง/ทั้งหมด</option>
-                <option value="Admin"> Admin</option>
+                <option value="Admin">Admin</option>
                 {Object.keys(DEFAULT_ROOM_PINS || {}).map(rk => (
                   <option key={rk} value={rk}>ห้อง {rk}</option>
                 ))}
@@ -811,7 +811,7 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
           {filteredLogs.length === 0 ? (
             <div className="p-10 text-center text-slate-500">
               <History className="w-10 h-10 text-slate-400 mx-auto mb-2 opacity-60" />
-              <p className="font-bold text-slate-700">ไม่พบประวัติการเข้าใช้งาน</p>
+              <p className="font-bold text-slate-700">ไม่พบประวัติการเข้าใช้งานระบบ</p>
               <p className="text-xs text-slate-400">เมื่อครูหรือ Admin ปลดล็อก PIN / เข้าใช้งาน ประวัติจะถูกบันทึกที่นี่อัตโนมัติ</p>
             </div>
           ) : (
