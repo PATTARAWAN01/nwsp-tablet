@@ -62,11 +62,11 @@ body {
 }
 
 /* ==========================================================================
-   OFFICIAL PRINT / PDF EXPORT FORMATTING (A4 Landscape with Generous Top/Bottom Margins & Padding)
+   OFFICIAL PRINT / PDF EXPORT FORMATTING (A4 Landscape with Generous Top/Bottom Margins & Page Buffer Padding)
    ========================================================================== */
 @page {
   size: A4 landscape;
-  margin: 22mm 16mm 22mm 16mm !important; /* Generous 22mm top/bottom & 16mm left/right margins for clean printing */
+  margin: 25mm 16mm 25mm 16mm !important; /* Generous 25mm top & bottom page margins for A4 landscape printing */
 }
 
 @media print {
@@ -94,7 +94,7 @@ body {
 
   /* Printable container styling with top/bottom paragraph margins */
   .printable-document {
-    padding: 10px 0 !important;
+    padding: 12px 0 !important;
     margin: 0 !important;
     border: none !important;
     box-shadow: none !important;
@@ -126,8 +126,23 @@ body {
     display: table-header-group !important; /* Repeats table column headers on every page! */
   }
 
+  tfoot {
+    display: table-footer-group !important; /* Repeats table footer spacer at bottom of every printed page! */
+  }
+
   tbody {
     display: table-row-group !important;
+  }
+
+  .print-header-spacer, .print-footer-spacer {
+    display: table-row !important;
+  }
+
+  .print-header-spacer th, .print-footer-spacer td {
+    border: none !important;
+    background: transparent !important;
+    height: 16px !important;
+    padding: 0 !important;
   }
 
   tr {
@@ -137,7 +152,7 @@ body {
   }
 
   th {
-    padding: 10px 10px !important;
+    padding: 9px 10px !important;
     border: 1.5px solid #475569 !important;
     background-color: #f1f5f9 !important;
     color: #0f172a !important;

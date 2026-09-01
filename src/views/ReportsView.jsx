@@ -185,7 +185,7 @@ export default function ReportsView() {
         <div>
           <p className="font-extrabold font-prompt text-amber-950 text-sm">💡 คำแนะนำสำหรับการสั่งพิมพ์ / บันทึกไฟล์ PDF ที่สมบูรณ์ที่สุด:</p>
           <p className="text-amber-900 text-xs mt-0.5 leading-relaxed">
-            ในหน้าต่างสั่งพิมพ์ (Print Dialog) ควรตั้งค่าขนาดกระดาษเป็น <strong>A4 (แนวนอน / Landscape)</strong> และตั้งค่า <strong>ระยะขอบ (Margins) เป็น "ตามค่าเริ่มต้น (Default)"</strong> ระบบได้จัดระยะขอบบน-ล่างไว้ 22 มม. อย่างสวยงามเรียบร้อยแล้วครับ
+            ในหน้าต่างสั่งพิมพ์ (Print Dialog) ควรตั้งค่าขนาดกระดาษเป็น <strong>A4 (แนวนอน / Landscape)</strong> และตั้งค่า <strong>ระยะขอบ (Margins) เป็น "ตามค่าเริ่มต้น (Default)"</strong> ระบบได้จัดระยะขอบบน-ล่างไว้ 25 มม. และเพิ่มระยะเว้นหัว-ท้ายตารางสำหรับทุกหน้าให้อย่างสวยงามสมบูรณ์แล้วครับ
           </p>
         </div>
       </div>
@@ -315,10 +315,14 @@ export default function ReportsView() {
           </div>
         )}
 
-        {/* Master Table with Page Break & Header Repeat Safety */}
+        {/* Master Table with Page Break & Header/Footer Spacer Safety */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
+              {/* Invisible Spacer Row repeated at top of every page (Page 2, 3...) in print */}
+              <tr className="print-header-spacer hidden border-0 p-0 m-0">
+                <th colSpan="9" className="border-0 p-0 m-0 bg-transparent h-4"></th>
+              </tr>
               <tr className="bg-slate-100 text-slate-900 border border-slate-300 font-bold">
                 <th className="p-2.5 border border-slate-300 text-center w-10">#</th>
                 <th className="p-2.5 border border-slate-300 text-blue-900 font-extrabold">Serial No.</th>
@@ -331,6 +335,14 @@ export default function ReportsView() {
                 <th className="p-2.5 border border-slate-300 text-slate-900 font-bold">ครูผู้ตรวจเช็ค</th>
               </tr>
             </thead>
+            
+            {/* Invisible Spacer Row repeated at bottom of every page (Page 1, 2...) in print */}
+            <tfoot>
+              <tr className="print-footer-spacer hidden border-0 p-0 m-0">
+                <td colSpan="9" className="border-0 p-0 m-0 bg-transparent h-4"></td>
+              </tr>
+            </tfoot>
+
             <tbody>
               {filteredDevicesList.length === 0 ? (
                 <tr>
