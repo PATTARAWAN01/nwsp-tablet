@@ -50,13 +50,26 @@ export default function ReportsView() {
       const st = await inspectionService.getDashboardStats(devList, selectedYear, selectedRound);
       setStats(st);
 
-      const roomKey = selectedGrade === 'ครู' ? 'ครู' : (selectedGrade !== 'ทั้งหมด' && selectedRoom !== 'ทั้งหมด' ? `${selectedGrade}/${selectedRoom}` : null);
-      if (roomKey) {
-        const inspectors = await inspectionService.getRoomInspectors(selectedYear, selectedRound, roomKey);
-        setRoomInspectors(inspectors);
-      } else {
-        setRoomInspectors([]);
-      }
+      // Extract unique inspector names directly from the inspected devices for this selection
+      const activeInspectorsSet = new Set();
+      devList.forEach(dev => {
+        const ins = insMap[dev.serial_no];
+        if (ins && ins.inspector) {
+          const name = String(ins.inspector).trim();
+          if (
+            name !== '' && 
+            name !== 'ครูประจำชั้น' && 
+            name !== 'ครูผู้ตรวจเช็ค' && 
+            name !== 'นาย' && 
+            name !== 'นางสาว' && 
+            name !== 'นาง'
+          ) {
+            activeInspectorsSet.add(name);
+          }
+        }
+      });
+
+      setRoomInspectors(Array.from(activeInspectorsSet));
 
     } catch (e) {
       console.error("Failed to load report data:", e);
@@ -358,7 +371,7 @@ export default function ReportsView() {
                         )}
                       </td>
                       <td className="p-2 border border-slate-300 font-semibold text-slate-800">
-                        {ins ? (ins.inspector || 'ครูประจำชั้น') : <span className="text-slate-400">-</span>}
+                        {ins ? (ins.inspector || 'ครูผู้ตรวจเช็ค') : <span className="text-slate-400">-</span>}
                       </td>
                     </tr>
                   );
@@ -375,14 +388,16 @@ export default function ReportsView() {
               <div key={idx} className="min-w-[220px]">
                 <p>ลงชื่อ..............................................................</p>
                 <p className="mt-1.5 font-bold">({tName})</p>
-                <p className="text-slate-500 mt-0.5">ครูผู้ตรวจเช็คอุปกรณ์ {roomInspectors.length > 1 ? `(${idx + 1})` : ''}</p>
+                <p className="text-slate-500 mt-0.5 font-semibold">
+                  ครูผู้ตรวจเช็คอุปกรณ์ {roomInspectors.length > 1 ? `(${idx + 1})` : ''}
+                </p>
               </div>
             ))
           ) : (
             <div className="min-w-[220px]">
               <p>ลงชื่อ..............................................................</p>
               <p className="mt-1.5 font-bold">(............................................................)</p>
-              <p className="text-slate-500 mt-0.5">ครูที่ปรึกษา / ผู้ตรวจเช็คอุปกรณ์</p>
+              <p className="text-slate-500 mt-0.5 font-semibold">ครูที่ปรึกษา / ผู้ตรวจเช็คอุปกรณ์</p>
             </div>
           )}
 
