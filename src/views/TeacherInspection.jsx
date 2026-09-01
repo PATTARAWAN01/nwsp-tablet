@@ -161,32 +161,47 @@ export default function TeacherInspection() {
   };
 
   const handleSaveInspections = async () => {
-    // Validate if any items are left unselected (null)
-    let unselectedCount = 0;
+    const recordsToSave = [];
+    const partiallyCheckedStudents = [];
+
     devices.forEach(dev => {
       const items = formState[dev.serial_no] || {};
-      Object.values(items).forEach(it => {
-        if (!it.status) unselectedCount++;
-      });
+      const selectedItemsCount = Object.values(items).filter(it => it && it.status !== null && it.status !== undefined).length;
+      
+      if (selectedItemsCount === 6) {
+        // Fully checked for this student (6 out of 6 items selected)
+        recordsToSave.push({
+          serial_no: dev.serial_no,
+          device_id: dev.id,
+          items: items
+        });
+      } else if (selectedItemsCount > 0 && selectedItemsCount < 6) {
+        // Partially checked for this student (e.g. 2 out of 6 items selected)
+        partiallyCheckedStudents.push(`${dev.prefix || ''}${dev.first_name} ${dev.last_name}`);
+      }
+      // If selectedItemsCount === 0 -> Unchecked student, skipped cleanly without blocking save of other checked students!
     });
 
-    if (unselectedCount > 0) {
+    if (partiallyCheckedStudents.length > 0) {
       setModalPopup({
         type: 'warning',
-        title: 'ข้อมูลยังไม่ครบถ้วน!',
-        message: `มีรายการอุปกรณ์ที่ยังไม่ได้เลือกสถานะจำนวน ${unselectedCount} รายการ (โปรดตรวจเช็คและเลือก "ปกติ" หรือ "ชำรุด" ให้ครบถ้วนก่อนบันทึก)`
+        title: 'ตรวจเช็คอุปกรณ์ไม่ครบ 6 รายการ!',
+        message: `มีอุปกรณ์ของนักเรียนที่เลือกยังไม่ครบทั้ง 6 รายการ: ${partiallyCheckedStudents.join(', ')} (กรุณาเลือก "ปกติ" หรือ "ชำรุด" ให้ครบทั้ง 6 รายการสำหรับเครื่องนั้นๆ หรือกด "ปกติทุกรายการ")`
+      });
+      return;
+    }
+
+    if (recordsToSave.length === 0) {
+      setModalPopup({
+        type: 'warning',
+        title: 'ยังไม่มีข้อมูลที่จะบันทึก!',
+        message: 'กรุณาทำการตรวจเช็คอุปกรณ์ให้ครบ 6 รายการอย่างน้อย 1 เครื่อง ก่อนกดบันทึกข้อมูล'
       });
       return;
     }
 
     setLoading(true);
     try {
-      const recordsToSave = devices.map(dev => ({
-        serial_no: dev.serial_no,
-        device_id: dev.id,
-        items: formState[dev.serial_no]
-      }));
-
       const inspectorName = teacherSession ? teacherSession.teacherName : "ครูประจำชั้น";
 
       await inspectionService.saveBatchInspection({
@@ -200,7 +215,7 @@ export default function TeacherInspection() {
       setModalPopup({
         type: 'success',
         title: 'บันทึกข้อมูลสำเร็จ! 🎉',
-        message: `บันทึกผลการตรวจเช็คอุปกรณ์ห้อง ${roomKey} (รอบที่ ${config.current_round}) จำนวน ${devices.length} เครื่อง โดย ${inspectorName} เรียบร้อยแล้ว`
+        message: `บันทึกผลการตรวจเช็คอุปกรณ์ของนักเรียน/ครูจำนวน ${recordsToSave.length} เครื่อง (ห้อง ${roomKey} รอบที่ ${config.current_round}) โดย ${inspectorName} เรียบร้อยแล้ว`
       });
 
       await loadRoomData();
@@ -223,6 +238,12 @@ export default function TeacherInspection() {
     d.serial_no.toLowerCase().includes(searchQuery.toLowerCase()) ||
     d.box_no.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Count how many devices are fully checked vs unchecked
+  const fullyCheckedCount = devices.filter(d => {
+    const items = formState[d.serial_no] || {};
+    return Object.values(items).filter(it => it && it.status !== null && it.status !== undefined).length === 6;
+  }).length;
 
   return (
     <div className="space-y-6">
@@ -397,7 +418,7 @@ export default function TeacherInspection() {
             
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <span className="px-4 py-2 bg-blue-900 text-white font-extrabold font-prompt rounded-2xl text-sm shadow-xs">
-                {roomKey} ({devices.length} เครื่อง)
+                {roomKey} (ตรวจครบแล้ว {fullyCheckedCount}/{devices.length} เครื่อง)
               </span>
 
               <span className="px-3.5 py-1.5 bg-amber-100 text-amber-950 font-extrabold rounded-xl text-xs border border-amber-300">
@@ -422,7 +443,7 @@ export default function TeacherInspection() {
               className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-2xl text-xs sm:text-sm transition-all shadow-md shadow-blue-600/30 flex items-center space-x-2"
             >
               <Save className="w-4 h-4 text-amber-300" />
-              <span>{loading ? 'กำลังบันทึก...' : 'บันทึกข้อมูลการตรวจ'}</span>
+              <span>{loading ? 'กำลังบันทึก...' : `บันทึกข้อมูลการตรวจ (${fullyCheckedCount} เครื่อง)`}</span>
             </button>
 
           </div>
@@ -446,16 +467,19 @@ export default function TeacherInspection() {
                   adapter: { status: null, note: '' }
                 };
 
-                const isAllNormal = Object.values(devItems).length > 0 && Object.values(devItems).every(it => it.status === 'normal');
-                const hasUnselected = Object.values(devItems).some(it => !it.status);
+                const selectedCount = Object.values(devItems).filter(it => it && it.status !== null && it.status !== undefined).length;
+                const isAll6Selected = selectedCount === 6;
+                const isAllNormal = isAll6Selected && Object.values(devItems).every(it => it.status === 'normal');
 
                 return (
                   /* High Contrast Solid White Student Card */
                   <div 
                     key={dev.id}
                     className={`bg-white rounded-3xl border-2 transition-all p-6 shadow-md ${
-                      hasUnselected 
+                      selectedCount === 0
                         ? 'border-slate-300/90' 
+                        : selectedCount > 0 && selectedCount < 6
+                        ? 'border-amber-400 bg-amber-50/20 shadow-amber-100'
                         : !isAllNormal 
                         ? 'border-rose-300 bg-rose-50/20 shadow-rose-100' 
                         : 'border-emerald-300 bg-emerald-50/10 shadow-emerald-100'
@@ -483,6 +507,21 @@ export default function TeacherInspection() {
                                 {dev.serial_no}
                               </span>
                             </div>
+
+                            {/* Per-Student Progress Badge */}
+                            {isAll6Selected ? (
+                              <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 rounded-full text-[11px] font-extrabold border border-emerald-300">
+                                ✓ ตรวจครบ 6/6
+                              </span>
+                            ) : selectedCount > 0 ? (
+                              <span className="px-2.5 py-0.5 bg-amber-100 text-amber-900 rounded-full text-[11px] font-extrabold border border-amber-300">
+                                ⚠️ ตรวจยังไม่ครบ ({selectedCount}/6)
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-0.5 bg-slate-100 text-slate-500 rounded-full text-[11px] font-bold border border-slate-200">
+                                ยังไม่ได้ตรวจ (0/6)
+                              </span>
+                            )}
                           </div>
 
                           <h3 className="font-extrabold text-slate-900 text-xl font-prompt pt-0.5">
@@ -605,7 +644,7 @@ export default function TeacherInspection() {
               className="px-6 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold rounded-2xl text-xs sm:text-sm transition-all shadow-lg shadow-amber-400/30 flex items-center space-x-2"
             >
               <Save className="w-4 h-4" />
-              <span>{loading ? 'กำลังบันทึก...' : 'บันทึกข้อมูลการตรวจ'}</span>
+              <span>{loading ? 'กำลังบันทึก...' : `บันทึกข้อมูลการตรวจ (${fullyCheckedCount} เครื่อง)`}</span>
             </button>
           </div>
 
