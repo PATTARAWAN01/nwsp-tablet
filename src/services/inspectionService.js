@@ -5,6 +5,7 @@ import {
   doc, 
   getDocs, 
   setDoc,
+  deleteDoc,
   writeBatch 
 } from 'firebase/firestore';
 
@@ -71,6 +72,18 @@ export const inspectionService = {
     }
 
     return newLog;
+  },
+
+  // Delete single audit log entry
+  deleteLog: async (logId) => {
+    if (isFirebaseActive && db) {
+      deleteDoc(doc(db, "logs", logId)).catch(e => console.error("Firestore deleteLog error:", e));
+    }
+
+    let logs = getLocalLogs();
+    logs = logs.filter(l => l.id !== logId);
+    setLocalLogs(logs);
+    return true;
   },
 
   // Get all audit logs (with filters)
@@ -163,6 +176,20 @@ export const inspectionService = {
     });
 
     return result;
+  },
+
+  // Delete single inspection record
+  deleteInspection: async (academicYear, round, serial_no) => {
+    const key = `${academicYear}-R${round}-${serial_no}`;
+
+    if (isFirebaseActive && db) {
+      deleteDoc(doc(db, "inspections", key)).catch(e => console.error("Firestore deleteInspection error:", e));
+    }
+
+    const all = getLocalInspections();
+    delete all[key];
+    setLocalInspections(all);
+    return true;
   },
 
   // Batch save room inspection

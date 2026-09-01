@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { deviceService } from '../services/deviceService';
-import { inspectionService } from '../services/inspectionService';
+import { inspectionService, getCategoryLabel } from '../services/inspectionService';
 import Papa from 'papaparse';
 import { 
   ShieldCheck, 
@@ -24,7 +24,9 @@ import {
   UserCheck,
   AlertCircle,
   XCircle,
-  RefreshCw
+  RefreshCw,
+  FileX,
+  AlertTriangle
 } from 'lucide-react';
 import { DEFAULT_ROOM_PINS } from '../services/sampleData';
 
@@ -70,6 +72,13 @@ export default function AdminManagement() {
   const [logFilterRoom, setLogFilterRoom] = useState("ทั้งหมด");
   const [logSearchQuery, setLogSearchQuery] = useState("");
 
+  // Inspection records management state
+  const [inspectionsList, setInspectionsList] = useState({});
+  const [manageSelectedRound, setManageSelectedRound] = useState(config.current_round);
+  const [manageSelectedGrade, setManageSelectedGrade] = useState("ทั้งหมด");
+  const [manageSelectedRoom, setManageSelectedRoom] = useState("ทั้งหมด");
+  const [manageSearchQuery, setManageSearchQuery] = useState("");
+
   // Popup Modal Alert
   const [modalPopup, setModalPopup] = useState(null);
 
@@ -83,9 +92,14 @@ export default function AdminManagement() {
       const pins = await deviceService.getRoomPins();
       setRoomPins(pins);
 
-      // Fetch ALL audit logs (Teacher PIN logins, Teacher saves, Admin logins & actions)
+      // Fetch ALL audit logs
       const logs = await inspectionService.getLogs({});
       setAuditLogs(logs);
+
+      // Fetch inspections for management
+      const ins = await inspectionService.getInspections(config.current_academic_year, manageSelectedRound);
+      setInspectionsList(ins);
+
     } catch (e) {
       console.error(e);
     } finally {
@@ -97,7 +111,7 @@ export default function AdminManagement() {
     if (isAdmin) {
       loadAdminData();
     }
-  }, [isAdmin, config.current_academic_year, config.current_round]);
+  }, [isAdmin, config.current_academic_year, config.current_round, manageSelectedRound]);
 
   const handleAdminLogin = async (e) => {
     e.preventDefault();
@@ -214,6 +228,41 @@ export default function AdminManagement() {
         type: 'success',
         title: 'ลบข้อมูลสำเร็จ!',
         message: `ลบข้อมูลของ ${name} ออกจากระบบแล้ว`
+      });
+      await loadAdminData();
+    }
+  };
+
+  const handleDeleteInspectionRecord = async (serialNo, ownerName, roundNum) => {
+    if (window.confirm(`⚠️ ยืนยันการลบผลการตรวจเช็คของ "${ownerName}" (Serial: ${serialNo}) รอบที่ ${roundNum}?\n\n(ผลการตรวจจะถูกยกเลิก และกลับเป็นสถานะยังไม่ได้ตรวจ)`)) {
+      await inspectionService.deleteInspection(config.current_academic_year, roundNum, serialNo);
+
+      await inspectionService.addLog({
+        academicYear: config.current_academic_year,
+        round: roundNum,
+        roomKey: "Admin",
+        teacherName: "ผู้ดูแลระบบ (Admin)",
+        action: "ลบผลการตรวจเช็คอุปกรณ์",
+        deviceCount: 1,
+        details: `ลบผลการตรวจเช็ค Serial No. ${serialNo} (${ownerName}) ในรอบที่ ${roundNum}`
+      });
+
+      setModalPopup({
+        type: 'success',
+        title: 'ลบผลการตรวจเช็คสำเร็จ!',
+        message: `ลบผลการตรวจเช็คอุปกรณ์ของ ${ownerName} (รอบที่ ${roundNum}) เรียบร้อยแล้ว`
+      });
+      await loadAdminData();
+    }
+  };
+
+  const handleDeleteLogEntry = async (logId, actionName) => {
+    if (window.confirm(`ยืนยันการลบประวัติการเข้าใช้งานรายการนี้?\n("${actionName}")`)) {
+      await inspectionService.deleteLog(logId);
+      setModalPopup({
+        type: 'success',
+        title: 'ลบประวัติสำเร็จ!',
+        message: 'ลบรายการประวัติการเข้าใช้งานเรียบร้อยแล้ว'
       });
       await loadAdminData();
     }
@@ -392,6 +441,29 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
     return true;
   });
 
+  // Filter inspected devices for the Manage Inspections sub-tab
+  const inspectedDevicesList = devices.map(dev => {
+    const record = inspectionsList[dev.serial_no];
+    return {
+      device: dev,
+      record: record || null
+    };
+  }).filter(item => {
+    if (!item.record) return false; // Only show devices that have an inspection record
+    if (manageSelectedGrade !== "ทั้งหมด" && item.device.grade !== manageSelectedGrade) return false;
+    if (manageSelectedRoom !== "ทั้งหมด" && String(item.device.room) !== String(manageSelectedRoom)) return false;
+    if (manageSearchQuery) {
+      const q = manageSearchQuery.toLowerCase();
+      return (
+        item.device.serial_no.toLowerCase().includes(q) ||
+        (item.device.prefix && item.device.prefix.toLowerCase().includes(q)) ||
+        item.device.first_name.toLowerCase().includes(q) ||
+        item.device.last_name.toLowerCase().includes(q)
+      );
+    }
+    return true;
+  });
+
   if (!isAdmin) {
     return (
       <div className="modern-glass-card rounded-3xl p-8 border border-white/80 shadow-xl max-w-md mx-auto space-y-6 animate-fade-in my-12">
@@ -480,6 +552,18 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
         >
           <Tablet className="w-4 h-4" />
           <span>รายการอุปกรณ์ ({devices.length})</span>
+        </button>
+
+        <button
+          onClick={() => setAdminSubTab('manage-inspections')}
+          className={`flex items-center space-x-2 px-4 py-2.5 rounded-2xl text-xs font-extrabold transition-all ${
+            adminSubTab === 'manage-inspections'
+              ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-400/20'
+              : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+          }`}
+        >
+          <FileX className="w-4 h-4" />
+          <span>ลบ/แก้ไขผลการตรวจเช็ค</span>
         </button>
 
         <button
@@ -668,7 +752,152 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
         </div>
       )}
 
-      {/* --- SUB TAB 2: CSV BATCH IMPORT --- */}
+      {/* --- SUB TAB 2: MANAGE & DELETE INSPECTION RECORDS --- */}
+      {adminSubTab === 'manage-inspections' && (
+        <div className="modern-glass rounded-3xl p-6 border border-white/80 shadow-sm space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200/60">
+            <div>
+              <h3 className="text-lg font-bold font-prompt text-slate-900">
+                ลบและแก้ไขผลการตรวจเช็คอุปกรณ์ (Manage Inspection Records)
+              </h3>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">
+                ในกรณีที่ครูตรวจเช็คผิด หรือต้องการยกเลิกผลการตรวจเฉพาะเครื่อง แอดมินสามารถลบผลการตรวจออกเพื่อให้ครูตรวจใหม่ได้
+              </p>
+            </div>
+
+            {/* Filter Controls for Inspection Records */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center space-x-1.5 bg-white px-3 py-1.5 rounded-xl border border-slate-200">
+                <span className="text-xs font-bold text-slate-600">รอบที่:</span>
+                <select
+                  value={manageSelectedRound}
+                  onChange={(e) => setManageSelectedRound(Number(e.target.value))}
+                  className="bg-transparent font-extrabold text-blue-900 text-xs focus:outline-none cursor-pointer"
+                >
+                  {[1, 2, 3, 4, 5].map(r => (
+                    <option key={r} value={r}>รอบที่ {r}</option>
+                  ))}
+                </select>
+              </div>
+
+              <select
+                value={manageSelectedGrade}
+                onChange={(e) => setManageSelectedGrade(e.target.value)}
+                className="bg-white border border-slate-200 text-slate-800 text-xs px-3 py-2 rounded-xl font-bold focus:outline-none cursor-pointer"
+              >
+                <option value="ทั้งหมด">ชั้น: ทั้งหมด</option>
+                <option value="ม.4">ม.4</option>
+                <option value="ม.5">ม.5</option>
+                <option value="ม.6">ม.6</option>
+                <option value="ครู">ครู</option>
+              </select>
+
+              <select
+                value={manageSelectedRoom}
+                onChange={(e) => setManageSelectedRoom(e.target.value)}
+                className="bg-white border border-slate-200 text-slate-800 text-xs px-3 py-2 rounded-xl font-bold focus:outline-none cursor-pointer"
+              >
+                <option value="ทั้งหมด">ห้อง: ทั้งหมด</option>
+                <option value="1">ห้อง 1</option>
+                <option value="2">ห้อง 2</option>
+                <option value="3">ห้อง 3</option>
+                <option value="4">ห้อง 4</option>
+              </select>
+
+              <div className="relative w-48">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="ค้น Serial, ชื่อ..."
+                  value={manageSearchQuery}
+                  onChange={(e) => setManageSearchQuery(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {inspectedDevicesList.length === 0 ? (
+            <div className="p-10 text-center text-slate-500">
+              <FileX className="w-10 h-10 text-slate-400 mx-auto mb-2 opacity-60" />
+              <p className="font-bold text-slate-700">ไม่พบข้อมูลรายการที่ตรวจเช็คแล้วในรอบนี้</p>
+              <p className="text-xs text-slate-400">ยังไม่มีการบันทึกผลการตรวจเช็คในรอบที่เลือก หรือไม่ตรงตามเงื่อนไขค้นหา</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-700">
+                <thead className="bg-slate-50 text-slate-900 font-bold uppercase border-b border-slate-200">
+                  <tr>
+                    <th className="p-3">#</th>
+                    <th className="p-3 text-blue-900">Serial No.</th>
+                    <th className="p-3 text-slate-900 font-extrabold">ผู้ครอบครอง</th>
+                    <th className="p-3">ชั้น / ห้อง</th>
+                    <th className="p-3">สถานะผลการตรวจ</th>
+                    <th className="p-3">ผู้ตรวจเช็ค & วันที่บันทึก</th>
+                    <th className="p-3 text-right">จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white/60">
+                  {inspectedDevicesList.map((item, idx) => {
+                    const dev = item.device;
+                    const rec = item.record;
+                    const items = rec.items || {};
+
+                    const damagedItems = Object.keys(items).filter(k => items[k] && items[k].status === 'damaged');
+                    const isAllNormal = damagedItems.length === 0;
+
+                    return (
+                      <tr key={dev.id} className="hover:bg-amber-50/30 transition-colors">
+                        <td className="p-3 font-mono text-slate-400">{idx + 1}</td>
+                        <td className="p-3 font-mono font-extrabold text-blue-900 text-sm whitespace-nowrap">
+                          {dev.serial_no}
+                        </td>
+                        <td className="p-3 font-bold text-slate-900 font-prompt text-sm whitespace-nowrap">
+                          {dev.prefix || ''} {dev.first_name} {dev.last_name}
+                        </td>
+                        <td className="p-3 font-semibold text-slate-800 whitespace-nowrap">
+                          {dev.type === 'teacher' ? 'ครูผู้สอน' : `${dev.grade}/${dev.room}`}
+                        </td>
+                        <td className="p-3 whitespace-nowrap">
+                          {isAllNormal ? (
+                            <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full font-extrabold border border-emerald-300 inline-flex items-center space-x-1">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>ปกติทุกรายการ</span>
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-1 bg-rose-100 text-rose-800 rounded-full font-extrabold border border-rose-300 inline-flex items-center space-x-1">
+                              <AlertTriangle className="w-3.5 h-3.5" />
+                              <span>ชำรุด {damagedItems.length} รายการ ({damagedItems.map(k => getCategoryLabel(k)).join(', ')})</span>
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3 font-medium text-slate-600 whitespace-nowrap">
+                          <div>👤 {rec.inspector || 'ครูที่ปรึกษา'}</div>
+                          <div className="text-[10px] text-slate-400 font-mono">
+                            {rec.inspected_at ? new Date(rec.inspected_at).toLocaleString('th-TH') : '-'}
+                          </div>
+                        </td>
+                        <td className="p-3 text-right whitespace-nowrap">
+                          <button
+                            onClick={() => handleDeleteInspectionRecord(dev.serial_no, `${dev.prefix || ''} ${dev.first_name} ${dev.last_name}`, manageSelectedRound)}
+                            className="px-3 py-1.5 bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 border border-rose-200 rounded-xl font-extrabold text-xs transition-all shadow-xs flex items-center space-x-1 ml-auto"
+                            title="ลบผลการตรวจเช็ค"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>ลบผลการตรวจ</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* --- SUB TAB 3: CSV BATCH IMPORT --- */}
       {adminSubTab === 'csv' && (
         <div className="modern-glass rounded-3xl p-6 border border-white/80 shadow-sm space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/60">
@@ -761,7 +990,7 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
         </div>
       )}
 
-      {/* --- SUB TAB 3: AUDIT LOGS --- */}
+      {/* --- SUB TAB 4: AUDIT LOGS --- */}
       {adminSubTab === 'logs' && (
         <div className="modern-glass rounded-3xl p-6 border border-white/80 shadow-sm space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200/60">
@@ -825,6 +1054,7 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
                     <th className="p-3">การทำรายการ</th>
                     <th className="p-3">รายละเอียดเพิ่มเติม</th>
                     <th className="p-3 text-center">จำนวนเครื่อง</th>
+                    <th className="p-3 text-right">ลบประวัติ</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white/60">
@@ -856,6 +1086,15 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
                         <td className="p-3 text-center font-mono font-extrabold text-slate-900 whitespace-nowrap">
                           {log.device_count > 0 ? `${log.device_count} เครื่อง` : '-'}
                         </td>
+                        <td className="p-3 text-right whitespace-nowrap">
+                          <button
+                            onClick={() => handleDeleteLogEntry(log.id, log.action)}
+                            className="p-1.5 bg-slate-100 hover:bg-rose-100 text-slate-500 hover:text-rose-700 rounded-xl text-xs transition-colors"
+                            title="ลบรายการประวัตินี้"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -866,7 +1105,7 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
         </div>
       )}
 
-      {/* --- SUB TAB 4: SETTINGS --- */}
+      {/* --- SUB TAB 5: SETTINGS --- */}
       {adminSubTab === 'settings' && (
         <div className="modern-glass rounded-3xl p-6 border border-white/80 shadow-sm max-w-2xl space-y-6">
           <h3 className="text-lg font-bold font-prompt text-slate-900 pb-3 border-b border-slate-200/60">
@@ -948,7 +1187,7 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
         </div>
       )}
 
-      {/* --- SUB TAB 5: ROOM PINS --- */}
+      {/* --- SUB TAB 6: ROOM PINS --- */}
       {adminSubTab === 'pins' && (
         <div className="modern-glass rounded-3xl p-6 border border-white/80 shadow-sm space-y-6">
           <div>
