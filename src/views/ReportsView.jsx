@@ -1,14 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { deviceService } from '../services/deviceService';
 import { inspectionService, getCategoryLabel } from '../services/inspectionService';
-import { exportToExcel, triggerPrintReport } from '../utils/exportUtils';
 import { 
-  FileSpreadsheet, 
+  FileText, 
   Printer, 
+  Download, 
+  CheckCircle2, 
+  AlertTriangle, 
+  Search, 
   Filter, 
-  Tablet
+  Tablet, 
+  Building2, 
+  UserCheck, 
+  Calendar 
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 export default function ReportsView() {
   const { config } = useAuth();
@@ -17,13 +24,15 @@ export default function ReportsView() {
   const [selectedRound, setSelectedRound] = useState(config.current_round);
   const [selectedGrade, setSelectedGrade] = useState("ทั้งหมด");
   const [selectedRoom, setSelectedRoom] = useState("ทั้งหมด");
-  const [statusFilter, setStatusFilter] = useState("ทั้งหมด");
+  const [statusFilter, setStatusFilter] = useState("ทั้งหมด"); // 'ทั้งหมด', 'damaged', 'normal'
 
   const [loading, setLoading] = useState(false);
   const [devices, setDevices] = useState([]);
   const [inspections, setInspections] = useState({});
-  const [stats, setStats] = useState(null);
   const [roomInspectors, setRoomInspectors] = useState([]);
+  const [stats, setStats] = useState(null);
+
+  const reportRef = useRef();
 
   const loadReportData = async () => {
     setLoading(true);
@@ -38,14 +47,19 @@ export default function ReportsView() {
       const insMap = await inspectionService.getInspections(selectedYear, selectedRound);
       setInspections(insMap);
 
-      const dashboardStats = await inspectionService.getDashboardStats(devList, selectedYear, selectedRound);
-      setStats(dashboardStats);
+      const st = await inspectionService.getDashboardStats(devList, selectedYear, selectedRound);
+      setStats(st);
 
-      const rKey = selectedGrade === 'ครู' ? 'ครู' : (selectedGrade !== 'ทั้งหมด' && selectedRoom !== 'ทั้งหมด' ? `${selectedGrade}/${selectedRoom}` : 'ทั้งหมด');
-      const inspectors = await inspectionService.getRoomInspectors(selectedYear, selectedRound, rKey);
-      setRoomInspectors(inspectors);
+      const roomKey = selectedGrade === 'ครู' ? 'ครู' : (selectedGrade !== 'ทั้งหมด' && selectedRoom !== 'ทั้งหมด' ? `${selectedGrade}/${selectedRoom}` : null);
+      if (roomKey) {
+        const inspectors = await inspectionService.getRoomInspectors(selectedYear, selectedRound, roomKey);
+        setRoomInspectors(inspectors);
+      } else {
+        setRoomInspectors([]);
+      }
+
     } catch (e) {
-      console.error(e);
+      console.error("Failed to load report data:", e);
     } finally {
       setLoading(false);
     }
@@ -55,76 +69,110 @@ export default function ReportsView() {
     loadReportData();
   }, [selectedYear, selectedRound, selectedGrade, selectedRoom]);
 
-  const displayDevices = devices.filter(dev => {
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleExportExcel = () => {
+    const dataToExport = devices.map((dev, idx) => {
+      const ins = inspections[dev.serial_no];
+      const items = ins ? (ins.items || {}) : {};
+      
+      const damagedList = [];
+      ['tablet', 'spen', 'keyboard', 'cable_white', 'cable_black', 'adapter'].forEach(cat => {
+        if (items[cat] && items[cat].status === 'damaged') {
+          damagedList.push(`${getCategoryLabel(cat)}${items[cat].note ? ` (${items[cat].note})` : ''}`);
+        }
+      });
+
+      const isChecked = !!ins;
+      const isDamaged = damagedList.length > 0;
+
+      return {
+        'ลำดับ': idx + 1,
+        'ประเภท': dev.type === 'teacher' ? 'ครูผู้สอน' : 'นักเรียน',
+        'คำนำหน้า': dev.prefix || 'นาย',
+        'ชื่อ': dev.first_name,
+        'นามสกุล': dev.last_name,
+        'ระดับชั้น': dev.type === 'teacher' ? 'ครู' : dev.grade,
+        'ห้อง': dev.type === 'teacher' ? '-' : dev.room,
+        'Serial No': dev.serial_no,
+        'เลข BOX': dev.box_no,
+        'เลข BOX KB': dev.box_kb_no,
+        'สถานะการตรวจ': isChecked ? (isDamaged ? 'ชำรุด' : 'ปกติ') : 'ยังไม่ได้ตรวจ',
+        'รายการชำรุด / หมายเหตุ': damagedList.join(', ') || '-',
+        'ผู้ตรวจเช็ค': ins ? (ins.inspector || 'ครูที่ปรึกษา') : '-',
+        'วันที่ตรวจเช็ค': ins && ins.inspected_at ? new Date(ins.inspected_at).toLocaleDateString('th-TH') : '-'
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "รายงานการตรวจเช็ค");
+    
+    XLSX.writeFile(workbook, `รายงานการตรวจเช็ค_ปี${selectedYear}_รอบที่${selectedRound}_${selectedGrade}_${selectedRoom}.xlsx`);
+  };
+
+  const filteredDevicesList = devices.filter(dev => {
     const ins = inspections[dev.serial_no];
-    if (statusFilter === "damaged") {
-      if (!ins || !ins.items) return false;
-      return Object.values(ins.items).some(it => it.status === 'damaged');
+    if (statusFilter === 'damaged') {
+      if (!ins) return false;
+      const items = ins.items || {};
+      return Object.values(items).some(it => it.status === 'damaged');
     }
-    if (statusFilter === "normal") {
-      if (!ins || !ins.items) return false;
-      return Object.values(ins.items).every(it => it.status === 'normal');
+    if (statusFilter === 'normal') {
+      if (!ins) return false;
+      const items = ins.items || {};
+      return Object.values(items).every(it => it.status === 'normal');
     }
     return true;
   });
 
-  const handleExcelExport = () => {
-    if (!stats) return;
-    exportToExcel({
-      devices: displayDevices,
-      inspections,
-      stats,
-      academicYear: selectedYear,
-      round: selectedRound,
-      roomFilter: `${selectedGrade}/${selectedRoom}`
-    });
-  };
-
   return (
     <div className="space-y-6">
       
-      {/* Top Banner & Export Buttons */}
-      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl glow-blue flex flex-col md:flex-row md:items-center justify-between gap-6 no-print">
+      {/* Top Header Banner & Actions */}
+      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6 no-print">
         <div>
           <div className="inline-flex items-center space-x-2 text-amber-300 text-xs font-bold mb-2 px-3 py-1 bg-white/10 backdrop-blur-md rounded-full border border-white/20">
-            <Tablet className="w-3.5 h-3.5 text-amber-400" />
-            <span>ระบบออกรายงานและส่งออกข้อมูล</span>
+            <FileText className="w-3.5 h-3.5" />
+            <span>ระบบออกรายงานและพิมพ์เอกสารอย่างเป็นทางการ</span>
           </div>
           <h2 className="text-2xl sm:text-3xl font-extrabold font-prompt text-white">
-            รายงานการตรวจเช็คอุปกรณ์ Tablet
+            รายงานผลการตรวจเช็ค Tablet
           </h2>
           <p className="text-slate-300 text-xs sm:text-sm mt-1 font-light">
-            โครงการ Anywhere Anytime โรงเรียนหนองวัวซอพิทยาคม
+            โรงเรียนหนองวัวซอพิทยาคม • โครงการ Anywhere Anytime
           </p>
         </div>
 
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button
-            onClick={handleExcelExport}
-            className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl text-xs sm:text-sm font-extrabold shadow-md shadow-emerald-500/20 transition-all flex items-center space-x-2"
+            onClick={handleExportExcel}
+            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-xs sm:text-sm font-extrabold transition-all shadow-md shadow-emerald-600/30 flex items-center space-x-2"
           >
-            <FileSpreadsheet className="w-4 h-4" />
-            <span>ส่งออก Excel (.xlsx)</span>
+            <Download className="w-4 h-4" />
+            <span>ส่งออก Excel</span>
           </button>
 
           <button
-            onClick={triggerPrintReport}
-            className="px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-2xl text-xs sm:text-sm font-extrabold shadow-md shadow-amber-400/20 transition-all flex items-center space-x-2"
+            onClick={handlePrint}
+            className="px-5 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-2xl text-xs sm:text-sm font-extrabold transition-all shadow-md shadow-amber-400/30 flex items-center space-x-2"
           >
-            <Printer className="w-4 h-4 text-slate-950" />
-            <span>พิมพ์รายงาน / บันทึก PDF</span>
+            <Printer className="w-4 h-4" />
+            <span>พิมพ์รายงาน / เซฟ PDF</span>
           </button>
         </div>
       </div>
 
-      {/* Filter Toolbar */}
-      <div className="modern-glass p-4 rounded-3xl border border-white/80 shadow-sm space-y-3 no-print">
-        <div className="flex items-center space-x-2 text-xs font-bold text-slate-800">
+      {/* Filter Controls (Hidden on Print) */}
+      <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4 no-print">
+        <h3 className="text-sm font-bold font-prompt text-slate-900 flex items-center space-x-2">
           <Filter className="w-4 h-4 text-blue-600" />
-          <span>ตัวกรองข้อมูลรายงาน:</span>
-        </div>
+          <span>กรองรายงานเพื่อพิมพ์หรือส่งออก:</span>
+        </h3>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 text-xs">
           <div>
             <label className="block text-slate-500 font-medium mb-1">ปีการศึกษา:</label>
             <select
@@ -132,21 +180,21 @@ export default function ReportsView() {
               onChange={(e) => setSelectedYear(e.target.value)}
               className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-800"
             >
-              {(config.academic_years || ["2569"]).map(y => (
-                <option key={y} value={y}>ปีการศึกษา พ.ศ. {y}</option>
+              {(config.academic_years || ["2569"]).map(yr => (
+                <option key={yr} value={yr}>ปีการศึกษา {yr}</option>
               ))}
             </select>
           </div>
 
           <div>
-            <label className="block text-slate-500 font-medium mb-1">รอบการตรวจ:</label>
+            <label className="block text-slate-500 font-medium mb-1">รอบการตรวจเช็ค:</label>
             <select
               value={selectedRound}
               onChange={(e) => setSelectedRound(Number(e.target.value))}
               className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-800"
             >
               {[1, 2, 3, 4, 5].map(r => (
-                <option key={r} value={r}>รอบการตรวจที่ {r}</option>
+                <option key={r} value={r}>รอบที่ {r}</option>
               ))}
             </select>
           </div>
@@ -197,7 +245,7 @@ export default function ReportsView() {
       </div>
 
       {/* Printable Official Document Container with Professional A4 Margin Formatting */}
-      <div className="printable-document bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-md">
+      <div ref={reportRef} className="printable-document bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-md">
         
         {/* Document Header (Page 1 Header) */}
         <div className="text-center pb-5 mb-5 border-b border-slate-300 space-y-1">
@@ -248,45 +296,43 @@ export default function ReportsView() {
             <thead>
               <tr className="bg-slate-100 text-slate-900 border border-slate-300 font-bold">
                 <th className="p-2.5 border border-slate-300 text-center w-10">#</th>
-                <th className="p-2.5 border border-slate-300">1. ประเภท</th>
-                <th className="p-2.5 border border-slate-300 text-blue-800 font-extrabold">2. Serial No.</th>
-                <th className="p-2.5 border border-slate-300 font-extrabold text-slate-900">3. ชื่อ - นามสกุล</th>
-                <th className="p-2.5 border border-slate-300 text-center">4. ชั้น/ห้อง</th>
-                <th className="p-2.5 border border-slate-300 font-mono">5. เลข BOX</th>
-                <th className="p-2.5 border border-slate-300 font-mono">6. เลข BOX KB</th>
-                <th className="p-2.5 border border-slate-300 text-center">สถานะ</th>
-                <th className="p-2.5 border border-slate-300">รายการชำรุดและรายละเอียด</th>
+                <th className="p-2.5 border border-slate-300 text-blue-900 font-extrabold">Serial No.</th>
+                <th className="p-2.5 border border-slate-300 font-extrabold">ชื่อ - นามสกุล ผู้ครองครอง</th>
+                <th className="p-2.5 border border-slate-300 text-center">ชั้น/ห้อง</th>
+                <th className="p-2.5 border border-slate-300 font-mono">BOX</th>
+                <th className="p-2.5 border border-slate-300 font-mono">BOX KB</th>
+                <th className="p-2.5 border border-slate-300 text-center">ผลการตรวจ</th>
+                <th className="p-2.5 border border-slate-300">รายการอุปกรณ์ที่ชำรุด / หมายเหตุ</th>
               </tr>
             </thead>
             <tbody>
-              {displayDevices.length === 0 ? (
+              {filteredDevicesList.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="p-6 text-center text-slate-500 border border-slate-300">
-                    ไม่พบข้อมูลตรงตามเงื่อนไขที่เลือก
+                  <td colSpan="8" className="p-6 text-center text-slate-500 font-medium border border-slate-300">
+                    ไม่พบรายการอุปกรณ์ตามเงื่อนไขที่เลือก
                   </td>
                 </tr>
               ) : (
-                displayDevices.map((dev, idx) => {
+                filteredDevicesList.map((dev, idx) => {
                   const ins = inspections[dev.serial_no];
-                  const items = ins ? ins.items : null;
-                  
-                  let damagedList = [];
-                  if (items) {
-                    Object.keys(items).forEach(k => {
-                      if (items[k].status === 'damaged') {
-                        damagedList.push(`${getCategoryLabel(k)} (${items[k].note || 'ชำรุด'})`);
-                      }
-                    });
-                  }
+                  const items = ins ? (ins.items || {}) : {};
+
+                  const damagedList = [];
+                  ['tablet', 'spen', 'keyboard', 'cable_white', 'cable_black', 'adapter'].forEach(cat => {
+                    if (items[cat] && items[cat].status === 'damaged') {
+                      damagedList.push(`${getCategoryLabel(cat)}${items[cat].note ? `: ${items[cat].note}` : ''}`);
+                    }
+                  });
 
                   const isDamaged = damagedList.length > 0;
 
                   return (
-                    <tr key={dev.id} className={isDamaged ? 'bg-rose-50/40' : ''}>
+                    <tr key={dev.id} className="border border-slate-300 hover:bg-slate-50">
                       <td className="p-2 border border-slate-300 text-center text-slate-500 font-mono">{idx + 1}</td>
-                      <td className="p-2 border border-slate-300 font-bold">{dev.type === 'teacher' ? 'ครู' : 'นักเรียน'}</td>
-                      <td className="p-2 border border-slate-300 font-mono font-extrabold text-blue-800 text-sm">{dev.serial_no}</td>
-                      <td className="p-2 border border-slate-300 font-bold text-slate-900 text-sm font-prompt">
+                      <td className="p-2 border border-slate-300 font-mono font-bold text-blue-900">
+                        {dev.serial_no}
+                      </td>
+                      <td className="p-2 border border-slate-300 font-bold text-slate-900">
                         {dev.prefix || ''} {dev.first_name} {dev.last_name}
                       </td>
                       <td className="p-2 border border-slate-300 text-center font-semibold">
@@ -318,7 +364,7 @@ export default function ReportsView() {
           </table>
         </div>
 
-        {/* Dynamic Teacher Signatures Footer Block */}
+        {/* Dynamic Teacher & Admin Configured Signatures Footer Block */}
         <div className="signature-block mt-12 pt-6 flex flex-wrap justify-around gap-6 text-center text-xs text-slate-700">
           {roomInspectors.length > 0 ? (
             roomInspectors.map((tName, idx) => (
@@ -336,11 +382,22 @@ export default function ReportsView() {
             </div>
           )}
 
-          <div className="min-w-[220px]">
-            <p>ลงชื่อ..............................................................</p>
-            <p className="mt-1.5 font-bold">(............................................................)</p>
-            <p className="text-slate-500 mt-0.5">หัวหน้าโครงการ / ผู้รับรองรายงาน</p>
-          </div>
+          {/* Render Configured Project Head / Certifier Signatures */}
+          {(config.report_signatures && config.report_signatures.length > 0) ? (
+            config.report_signatures.map((sig, sIdx) => (
+              <div key={sig.id || sIdx} className="min-w-[220px]">
+                <p>ลงชื่อ..............................................................</p>
+                <p className="mt-1.5 font-bold">({sig.name && sig.name.trim() !== '' ? sig.name.trim() : '............................................................'})</p>
+                <p className="text-slate-500 mt-0.5 font-semibold">{sig.title || 'หัวหน้าโครงการ / ผู้รับรองรายงาน'}</p>
+              </div>
+            ))
+          ) : (
+            <div className="min-w-[220px]">
+              <p>ลงชื่อ..............................................................</p>
+              <p className="mt-1.5 font-bold">(............................................................)</p>
+              <p className="text-slate-500 mt-0.5 font-semibold">หัวหน้าโครงการ / ผู้รับรองรายงาน</p>
+            </div>
+          )}
         </div>
 
       </div>

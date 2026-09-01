@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { deviceService } from '../services/deviceService';
+import { deviceService, DEFAULT_REPORT_SIGNATURES } from '../services/deviceService';
 import { inspectionService } from '../services/inspectionService';
 
 const AuthContext = createContext();
@@ -22,7 +22,8 @@ export function AuthProvider({ children }) {
     academic_years: ["2569"],
     current_academic_year: "2569",
     current_round: 1,
-    admin_password: "nwsp1234"
+    admin_password: "nwsp1234",
+    report_signatures: DEFAULT_REPORT_SIGNATURES
   });
 
   const [loading, setLoading] = useState(true);
@@ -111,14 +112,15 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('anywhere_teacher_session');
   };
 
-  // Switch academic year or round (Admin action)
-  const updateGlobalSettings = async ({ academicYear, round, academicYearsList, adminPassword }) => {
+  // Switch academic year, round, or report signatures (Admin action)
+  const updateGlobalSettings = async ({ academicYear, round, academicYearsList, adminPassword, reportSignatures }) => {
     const newCfg = {
       ...config,
       ...(academicYear && { current_academic_year: academicYear }),
       ...(round && { current_round: Number(round) }),
       ...(academicYearsList && { academic_years: academicYearsList }),
-      ...(adminPassword && { admin_password: adminPassword })
+      ...(adminPassword && { admin_password: adminPassword }),
+      ...(reportSignatures && { report_signatures: reportSignatures })
     };
     const updated = await deviceService.updateConfig(newCfg);
     setConfig(updated);

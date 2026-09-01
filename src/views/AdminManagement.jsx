@@ -26,7 +26,9 @@ import {
   XCircle,
   RefreshCw,
   FileX,
-  AlertTriangle
+  AlertTriangle,
+  UserCheck2,
+  UserPlus
 } from 'lucide-react';
 import { DEFAULT_ROOM_PINS } from '../services/sampleData';
 
@@ -79,6 +81,14 @@ export default function AdminManagement() {
   const [manageSelectedRoom, setManageSelectedRoom] = useState("ทั้งหมด");
   const [manageSearchQuery, setManageSearchQuery] = useState("");
 
+  // Custom Report Signatures state
+  const [reportSignatures, setReportSignatures] = useState(
+    config.report_signatures || [
+      { id: 'sig-1', title: 'หัวหน้าโครงการ Anywhere Anytime', name: '' },
+      { id: 'sig-2', title: 'ผู้รับรองรายงาน / ผู้บริหาร', name: '' }
+    ]
+  );
+
   // Popup Modal Alert
   const [modalPopup, setModalPopup] = useState(null);
 
@@ -112,6 +122,12 @@ export default function AdminManagement() {
       loadAdminData();
     }
   }, [isAdmin, config.current_academic_year, config.current_round, manageSelectedRound]);
+
+  useEffect(() => {
+    if (config.report_signatures) {
+      setReportSignatures(config.report_signatures);
+    }
+  }, [config]);
 
   const handleAdminLogin = async (e) => {
     e.preventDefault();
@@ -362,6 +378,37 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
     document.body.removeChild(link);
   };
 
+  const handleSignatureChange = (index, field, value) => {
+    const updated = [...reportSignatures];
+    updated[index] = {
+      ...updated[index],
+      [field]: value
+    };
+    setReportSignatures(updated);
+  };
+
+  const handleAddSignatureBlock = () => {
+    const newBlock = {
+      id: `sig-${Date.now()}`,
+      title: 'ผู้รับรองรายงานเพิ่มเติม',
+      name: ''
+    };
+    setReportSignatures([...reportSignatures, newBlock]);
+  };
+
+  const handleDeleteSignatureBlock = (index) => {
+    if (reportSignatures.length <= 1) {
+      setModalPopup({
+        type: 'warning',
+        title: 'ไม่สามารถลบได้',
+        message: 'ต้องมีช่องผู้ลงชื่อท้ายรายงานอย่างน้อย 1 รายการ'
+      });
+      return;
+    }
+    const updated = reportSignatures.filter((_, idx) => idx !== index);
+    setReportSignatures(updated);
+  };
+
   const handleSaveSettings = async (e) => {
     e.preventDefault();
     let years = [...(config.academic_years || ["2569"])];
@@ -373,7 +420,8 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
 
     await updateGlobalSettings({
       academicYearsList: years,
-      adminPassword: newPassInput ? newPassInput.trim() : config.admin_password
+      adminPassword: newPassInput ? newPassInput.trim() : config.admin_password,
+      reportSignatures: reportSignatures
     });
 
     await inspectionService.addLog({
@@ -383,13 +431,13 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
       teacherName: "ผู้ดูแลระบบ (Admin)",
       action: "อัปเดตการตั้งค่าระบบ",
       deviceCount: 0,
-      details: `อัปเดตตั้งค่าปีการศึกษา / รอบการตรวจที่ ${config.current_round}`
+      details: `อัปเดตตั้งค่าปีการศึกษา / รอบการตรวจที่ ${config.current_round} / ผู้ลงชื่อท้ายรายงาน ${reportSignatures.length} ท่าน`
     });
 
     setModalPopup({
       type: 'success',
       title: 'บันทึกการตั้งค่าสำเร็จ! 🎉',
-      message: 'อัปเดตปีการศึกษา รอบการตรวจ และรหัสผ่านระบบเรียบร้อยแล้ว'
+      message: 'อัปเดตปีการศึกษา รอบการตรวจ รหัสผ่าน และตำแหน่ง/ผู้ลงชื่อท้ายรายงานเรียบร้อยแล้ว'
     });
 
     setNewYearInput("");
@@ -449,7 +497,7 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
       record: record || null
     };
   }).filter(item => {
-    if (!item.record) return false; // Only show devices that have an inspection record
+    if (!item.record) return false;
     if (manageSelectedGrade !== "ทั้งหมด" && item.device.grade !== manageSelectedGrade) return false;
     if (manageSelectedRoom !== "ทั้งหมด" && String(item.device.room) !== String(manageSelectedRoom)) return false;
     if (manageSearchQuery) {
@@ -599,7 +647,7 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
           }`}
         >
           <Calendar className="w-4 h-4" />
-          <span>ตั้งค่าปีการศึกษา & รอบการตรวจ</span>
+          <span>ตั้งค่าปีการศึกษา & ผู้ลงชื่อท้ายรายงาน</span>
         </button>
 
         <button
@@ -1107,25 +1155,42 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
 
       {/* --- SUB TAB 5: SETTINGS --- */}
       {adminSubTab === 'settings' && (
-        <div className="modern-glass rounded-3xl p-6 border border-white/80 shadow-sm max-w-2xl space-y-6">
+        <div className="modern-glass rounded-3xl p-6 border border-white/80 shadow-sm max-w-3xl space-y-6">
           <h3 className="text-lg font-bold font-prompt text-slate-900 pb-3 border-b border-slate-200/60">
-            ตั้งค่าปีการศึกษา รอบการตรวจ และรหัสผ่าน Admin
+            ตั้งค่าปีการศึกษา รอบการตรวจ รหัสผ่าน Admin และผู้ลงชื่อท้ายรายงาน
           </h3>
 
-          <form onSubmit={handleSaveSettings} className="space-y-5 text-sm font-sarabun">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                ปีการศึกษาปัจจุบันในระบบ:
-              </label>
-              <select
-                value={config.current_academic_year}
-                onChange={(e) => updateGlobalSettings({ academicYear: e.target.value })}
-                className="w-full p-3 bg-white border border-slate-300 rounded-2xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {(config.academic_years || ["2569"]).map(yr => (
-                  <option key={yr} value={yr}>ปีการศึกษา พ.ศ. {yr}</option>
-                ))}
-              </select>
+          <form onSubmit={handleSaveSettings} className="space-y-6 text-sm font-sarabun">
+            
+            {/* Global Year & Round Controls */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  ปีการศึกษาปัจจุบันในระบบ:
+                </label>
+                <select
+                  value={config.current_academic_year}
+                  onChange={(e) => updateGlobalSettings({ academicYear: e.target.value })}
+                  className="w-full p-3 bg-white border border-slate-300 rounded-2xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {(config.academic_years || ["2569"]).map(yr => (
+                    <option key={yr} value={yr}>ปีการศึกษา พ.ศ. {yr}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  เพิ่มปีการศึกษาใหม่ (เช่น 2570):
+                </label>
+                <input
+                  type="text"
+                  placeholder="กรอกปีการศึกษา พ.ศ. เช่น 2570"
+                  value={newYearInput}
+                  onChange={(e) => setNewYearInput(e.target.value)}
+                  className="w-full p-3 bg-white border border-slate-300 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
             </div>
 
             <div>
@@ -1152,19 +1217,6 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                เพิ่มปีการศึกษาใหม่ (เช่น 2570, 2571):
-              </label>
-              <input
-                type="text"
-                placeholder="กรอกปีการศึกษา พ.ศ. เช่น 2570"
-                value={newYearInput}
-                onChange={(e) => setNewYearInput(e.target.value)}
-                className="w-full p-3 bg-white border border-slate-300 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
                 เปลี่ยนรหัสผ่าน Admin:
               </label>
               <input
@@ -1176,12 +1228,79 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
               />
             </div>
 
+            {/* Custom Report Signature Customizer Section */}
+            <div className="pt-4 border-t border-slate-200/80 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-base font-extrabold font-prompt text-slate-900 flex items-center space-x-2">
+                    <UserCheck2 className="w-5 h-5 text-amber-500" />
+                    <span>ปรับแก้ชื่อและตำแหน่งผู้ลงชื่อท้ายรายงานผล</span>
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    กำหนดชื่อและตำแหน่งที่จะแสดงในบล็อกลงชื่อท้ายเอกสารรายงาน PDF / การพิมพ์ (เช่น หัวหน้าโครงการ, ผู้รับรองรายงาน, ผู้อำนวยการ)
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAddSignatureBlock}
+                  className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-xl text-xs font-bold transition-colors flex items-center space-x-1"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>เพิ่มผู้ลงชื่อ</span>
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {reportSignatures.map((sig, idx) => (
+                  <div key={sig.id || idx} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          ตำแหน่ง / บทบาท #{idx + 1}:
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="เช่น หัวหน้าโครงการ / ผู้รับรองรายงาน"
+                          value={sig.title || ''}
+                          onChange={(e) => handleSignatureChange(idx, 'title', e.target.value)}
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          ชื่อ - นามสกุล (ใส่หรือไม่ใส่ก็ได้):
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="เช่น นายสมเกียรติ รักเรียน"
+                          value={sig.name || ''}
+                          onChange={(e) => handleSignatureChange(idx, 'name', e.target.value)}
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteSignatureBlock(idx)}
+                      className="p-2 bg-white hover:bg-rose-100 text-slate-400 hover:text-rose-700 border border-slate-200 rounded-xl text-xs transition-colors self-end sm:self-auto"
+                      title="ลบช่องลงชื่อนี้"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <button
               type="submit"
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-2xl text-xs shadow-md shadow-blue-600/30 transition-all flex items-center space-x-2"
+              className="px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-2xl text-xs sm:text-sm shadow-md shadow-blue-600/30 transition-all flex items-center space-x-2"
             >
               <Save className="w-4 h-4 text-amber-300" />
-              <span>บันทึกการตั้งค่า</span>
+              <span>บันทึกการตั้งค่าทั้งหมด</span>
             </button>
           </form>
         </div>

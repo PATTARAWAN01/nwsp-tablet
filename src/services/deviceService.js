@@ -22,6 +22,11 @@ const PINS_KEY = 'anywhere_tablet_room_pins_v5';
 const INSPECTIONS_KEY = 'anywhere_tablet_inspections_v5';
 const SYSTEM_KEY = 'anywhere_tablet_system_v5';
 
+export const DEFAULT_REPORT_SIGNATURES = [
+  { id: 'sig-1', title: 'หัวหน้าโครงการ Anywhere Anytime', name: '' },
+  { id: 'sig-2', title: 'ผู้รับรองรายงาน / ผู้บริหาร', name: '' }
+];
+
 function getLocalData(key, defaultVal) {
   try {
     const data = localStorage.getItem(key);
@@ -55,7 +60,8 @@ export async function initStoreIfEmpty() {
           academic_years: ["2569"],
           current_academic_year: INITIAL_ACADEMIC_YEAR,
           current_round: INITIAL_INSPECTION_ROUND,
-          admin_password: "nwsp1234"
+          admin_password: "nwsp1234",
+          report_signatures: DEFAULT_REPORT_SIGNATURES
         };
         await setDoc(doc(db, "settings", "config"), defaultConfig);
         setLocalData(CONFIG_KEY, defaultConfig);
@@ -74,7 +80,6 @@ export async function initStoreIfEmpty() {
 
       // 3. Devices doc check
       if (!sysData) {
-        // System NEVER initialized before -> seed sample devices ONCE in Firestore
         const devSnap = await getDocs(collection(db, "devices"));
         if (devSnap.empty) {
           const samples = generateSampleDevices();
@@ -85,16 +90,13 @@ export async function initStoreIfEmpty() {
           await batch.commit();
           setLocalData(DEVICES_KEY, samples);
         }
-        // Mark system as initialized in Firestore
         await setDoc(sysDocRef, { initialized: true, cleared: false });
         setLocalData(SYSTEM_KEY, { initialized: true, cleared: false });
       } else if (sysData.cleared === true) {
-        // System WAS cleared by admin -> KEEP EMPTY, DO NOT RE-SEED SAMPLE DATA!
         setLocalData(DEVICES_KEY, []);
         setLocalData(INSPECTIONS_KEY, {});
         setLocalData(SYSTEM_KEY, sysData);
       } else {
-        // System active -> Fetch live devices from Firestore
         const devSnap = await getDocs(collection(db, "devices"));
         const list = devSnap.docs.map(doc => doc.data());
         setLocalData(DEVICES_KEY, list);
@@ -105,7 +107,6 @@ export async function initStoreIfEmpty() {
       console.warn("Firestore initStore error, using local fallback:", e.message);
     }
   } else {
-    // Local persistence fallback
     const sysData = getLocalData(SYSTEM_KEY, null);
     if (!sysData) {
       let devices = generateSampleDevices();
@@ -183,7 +184,6 @@ export const deviceService = {
 
     if (isFirebaseActive && db) {
       await setDoc(doc(db, "devices", newDevice.id), newDevice);
-      // Mark system as active (not cleared) when new devices are added
       await setDoc(doc(db, "settings", "system"), { initialized: true, cleared: false });
     }
 
@@ -224,12 +224,10 @@ export const deviceService = {
   },
 
   clearAllDevices: async () => {
-    // 1. Set central Firestore system flag to cleared = true
     if (isFirebaseActive && db) {
       try {
         await setDoc(doc(db, "settings", "system"), { initialized: true, cleared: true });
 
-        // Delete all devices in Firestore
         const devSnap = await getDocs(collection(db, "devices"));
         if (!devSnap.empty) {
           const batch = writeBatch(db);
@@ -237,7 +235,6 @@ export const deviceService = {
           await batch.commit();
         }
 
-        // Delete all inspections in Firestore
         const insSnap = await getDocs(collection(db, "inspections"));
         if (!insSnap.empty) {
           const batchIns = writeBatch(db);
@@ -249,7 +246,6 @@ export const deviceService = {
       }
     }
 
-    // 2. Clear all local storage keys
     setLocalData(SYSTEM_KEY, { initialized: true, cleared: true });
     setLocalData(DEVICES_KEY, []);
     setLocalData(INSPECTIONS_KEY, {});
@@ -327,6 +323,9 @@ export const deviceService = {
         const configDoc = await getDoc(doc(db, "settings", "config"));
         if (configDoc.exists()) {
           const data = configDoc.data();
+          if (!data.report_signatures) {
+            data.report_signatures = DEFAULT_REPORT_SIGNATURES;
+          }
           setLocalData(CONFIG_KEY, data);
           return data;
         }
@@ -334,12 +333,17 @@ export const deviceService = {
         console.error("Firestore getConfig error:", e);
       }
     }
-    return getLocalData(CONFIG_KEY, {
+    const cached = getLocalData(CONFIG_KEY, {
       academic_years: ["2569"],
       current_academic_year: "2569",
       current_round: 1,
-      admin_password: "nwsp1234"
+      admin_password: "nwsp1234",
+      report_signatures: DEFAULT_REPORT_SIGNATURES
     });
+    if (!cached.report_signatures) {
+      cached.report_signatures = DEFAULT_REPORT_SIGNATURES;
+    }
+    return cached;
   },
 
   updateConfig: async (newConfig) => {
