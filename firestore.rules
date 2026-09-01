@@ -1,0 +1,16 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ====================================================================
+    // กฎความปลอดภัย Firestore สำหรับระบบ Tablet โครงการ Anywhere Anytime
+    // โรงเรียนหนองวัวซอพิทยาคม
+    // ====================================================================
+    
+    // อนุญาตให้ อ่าน (Read) และ บันทึก (Write) ข้อมูลทั้งหมดในระบบได้
+    match /{document=**} {
+      allow read, write: if true;
+    }
+
+  }
+}
