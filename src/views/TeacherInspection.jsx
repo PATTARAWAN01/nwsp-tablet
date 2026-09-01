@@ -16,7 +16,8 @@ import {
   Zap,
   UserCheck,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  AlertTriangle
 } from 'lucide-react';
 
 export default function TeacherInspection() {
@@ -502,16 +503,16 @@ export default function TeacherInspection() {
                         onClick={() => handleMarkStudentAllNormal(dev.serial_no)}
                         className={`self-start md:self-center px-4 py-2 rounded-2xl text-xs font-extrabold transition-all flex items-center space-x-1.5 border ${
                           isAllNormal
-                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
-                            : 'bg-slate-50 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 border-slate-300 shadow-xs'
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-md ring-2 ring-emerald-300'
+                            : 'bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-800 border-emerald-300 shadow-xs'
                         }`}
                       >
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        <CheckCircle2 className="w-4 h-4" />
                         <span>ปกติทุกรายการ</span>
                       </button>
                     </div>
 
-                    {/* 6 Checklist Items Grid (Distinct Slate-50 Background for High Contrast) */}
+                    {/* 6 Checklist Items Grid (High Contrast Interactive Action Buttons) */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 mt-4">
                       {[
                         { key: 'tablet', label: '1. Tablet', icon: Tablet },
@@ -531,7 +532,7 @@ export default function TeacherInspection() {
                             key={item.key} 
                             className={`p-3.5 rounded-2xl border text-xs transition-all ${
                               isDamaged 
-                                ? 'bg-rose-100/80 border-rose-300 shadow-xs' 
+                                ? 'bg-rose-100/90 border-rose-300 shadow-xs' 
                                 : isNormal 
                                 ? 'bg-emerald-50 border-emerald-300' 
                                 : 'bg-slate-50/90 border-slate-200/90'
@@ -543,24 +544,32 @@ export default function TeacherInspection() {
                                 <span>{item.label}</span>
                               </div>
 
-                              <div className="inline-flex p-1 bg-white rounded-xl border border-slate-200 shadow-xs">
+                              {/* Interactive High Affordance Action Buttons */}
+                              <div className="inline-flex items-center space-x-1.5">
                                 <button
                                   type="button"
                                   onClick={() => handleItemStatusChange(dev.serial_no, item.key, 'normal')}
-                                  className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-all ${
-                                    isNormal ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center space-x-1 border ${
+                                    isNormal
+                                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-md ring-2 ring-emerald-300 scale-105'
+                                      : 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-600 hover:text-white shadow-2xs'
                                   }`}
                                 >
-                                  ปกติ
+                                  <CheckCircle2 className={`w-3.5 h-3.5 ${isNormal ? 'text-white' : 'text-emerald-600'}`} />
+                                  <span>ปกติ</span>
                                 </button>
+
                                 <button
                                   type="button"
                                   onClick={() => handleItemStatusChange(dev.serial_no, item.key, 'damaged')}
-                                  className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-all ${
-                                    isDamaged ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center space-x-1 border ${
+                                    isDamaged
+                                      ? 'bg-rose-600 text-white border-rose-600 shadow-md ring-2 ring-rose-300 scale-105'
+                                      : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-600 hover:text-white shadow-2xs'
                                   }`}
                                 >
-                                  ชำรุด
+                                  <AlertTriangle className={`w-3.5 h-3.5 ${isDamaged ? 'text-white' : 'text-rose-600'}`} />
+                                  <span>ชำรุด</span>
                                 </button>
                               </div>
                             </div>
@@ -571,7 +580,7 @@ export default function TeacherInspection() {
                                 placeholder="ระบุอาการชำรุด..."
                                 value={current.note || ''}
                                 onChange={(e) => handleItemNoteChange(dev.serial_no, item.key, e.target.value)}
-                                className="w-full mt-2 px-3 py-2 bg-white border border-rose-300 rounded-xl text-xs text-rose-900 font-medium focus:outline-none focus:ring-2 focus:ring-rose-500 placeholder-rose-400"
+                                className="w-full mt-2 px-3 py-2 bg-white border border-rose-300 rounded-xl text-xs text-rose-900 font-medium focus:outline-none focus:ring-2 focus:ring-rose-500 placeholder-rose-400 shadow-inner"
                               />
                             )}
                           </div>
