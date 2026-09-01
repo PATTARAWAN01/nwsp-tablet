@@ -8,8 +8,8 @@ import {
   writeBatch 
 } from 'firebase/firestore';
 
-const INSPECTIONS_KEY = 'anywhere_tablet_inspections_v4';
-const LOGS_KEY = 'anywhere_tablet_access_logs_v4';
+const INSPECTIONS_KEY = 'anywhere_tablet_inspections_v5';
+const LOGS_KEY = 'anywhere_tablet_access_logs_v5';
 
 function getLocalInspections() {
   try {
@@ -75,19 +75,29 @@ export const inspectionService = {
 
   // Get all audit logs (with filters)
   getLogs: async ({ academicYear, round, roomKey } = {}) => {
-    const cachedLogs = getLocalLogs();
-
     if (isFirebaseActive && db) {
-      getDocs(collection(db, "logs")).then(snap => {
-        if (!snap.empty) {
-          let logs = snap.docs.map(d => d.data());
-          logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-          setLocalLogs(logs);
+      try {
+        const snap = await getDocs(collection(db, "logs"));
+        let logs = snap.docs.map(d => d.data());
+        logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        setLocalLogs(logs);
+
+        if (academicYear) {
+          logs = logs.filter(l => (l.academic_year || "2569") === academicYear);
         }
-      }).catch(e => console.error("Firestore getLogs background error:", e));
+        if (round) {
+          logs = logs.filter(l => Number(l.round) === Number(round));
+        }
+        if (roomKey && roomKey !== "ทั้งหมด") {
+          logs = logs.filter(l => l.room_key === roomKey);
+        }
+        return logs;
+      } catch (e) {
+        console.error("Firestore getLogs error, fallback to local:", e);
+      }
     }
 
-    let logs = cachedLogs;
+    let logs = getLocalLogs();
     if (academicYear) {
       logs = logs.filter(l => (l.academic_year || "2569") === academicYear);
     }
@@ -114,24 +124,36 @@ export const inspectionService = {
 
   // Get all inspection records for a given year & round
   getInspections: async (academicYear, round) => {
-    initStoreIfEmpty();
-    const allLocal = getLocalInspections();
+    await initStoreIfEmpty();
 
     if (isFirebaseActive && db) {
-      getDocs(collection(db, "inspections")).then(snap => {
-        if (!snap.empty) {
-          const freshLocal = { ...allLocal };
-          snap.docs.forEach(d => {
-            freshLocal[d.id] = d.data();
-          });
-          setLocalInspections(freshLocal);
-        }
-      }).catch(e => console.error("Firestore getInspections background sync error:", e));
+      try {
+        const snap = await getDocs(collection(db, "inspections"));
+        const result = {};
+        const freshObj = {};
+
+        snap.docs.forEach(d => {
+          const record = d.data();
+          freshObj[d.id] = record;
+          if (
+            (academicYear ? record.academic_year === academicYear : true) &&
+            (round ? Number(record.round) === Number(round) : true)
+          ) {
+            result[record.serial_no] = record;
+          }
+        });
+
+        setLocalInspections(freshObj);
+        return result;
+      } catch (e) {
+        console.error("Firestore getInspections error:", e);
+      }
     }
 
+    const all = getLocalInspections();
     const result = {};
-    Object.keys(allLocal).forEach(key => {
-      const record = allLocal[key];
+    Object.keys(all).forEach(key => {
+      const record = all[key];
       if (
         (academicYear ? record.academic_year === academicYear : true) &&
         (round ? Number(record.round) === Number(round) : true)
@@ -143,7 +165,7 @@ export const inspectionService = {
     return result;
   },
 
-  // Batch save room inspection (Lightning Fast with writeBatch)
+  // Batch save room inspection
   saveBatchInspection: async ({ academicYear, round, roomKey, recordsList, inspector }) => {
     const all = getLocalInspections();
     const batch = (isFirebaseActive && db) ? writeBatch(db) : null;
@@ -170,7 +192,7 @@ export const inspectionService = {
     setLocalInspections(all);
 
     if (batch) {
-      await batch.commit(); // Atomic fast commit in 1 single HTTP request!
+      await batch.commit();
     }
 
     // Record audit log
