@@ -8,7 +8,6 @@ import {
   Lock, 
   KeyRound, 
   Search, 
-  CheckCheck, 
   LogOut, 
   ShieldCheck,
   Tablet,
@@ -160,26 +159,6 @@ export default function TeacherInspection() {
     }));
   };
 
-  const handleMarkWholeRoomNormal = () => {
-    if (!window.confirm(`ยืนยันการตั้งค่าให้อุปกรณ์ทุกเครื่องใน ${roomKey} อยู่ในสถานะ "ปกติทุกรายการ"?`)) {
-      return;
-    }
-    setFormState(prev => {
-      const updated = { ...prev };
-      devices.forEach(dev => {
-        updated[dev.serial_no] = {
-          tablet: { status: 'normal', note: '' },
-          spen: { status: 'normal', note: '' },
-          keyboard: { status: 'normal', note: '' },
-          cable_white: { status: 'normal', note: '' },
-          cable_black: { status: 'normal', note: '' },
-          adapter: { status: 'normal', note: '' }
-        };
-      });
-      return updated;
-    });
-  };
-
   const handleSaveInspections = async () => {
     // Validate if any items are left unselected (null)
     let unselectedCount = 0;
@@ -194,7 +173,7 @@ export default function TeacherInspection() {
       setModalPopup({
         type: 'warning',
         title: 'ข้อมูลยังไม่ครบถ้วน!',
-        message: `มีรายการอุปกรณ์ที่ยังไม่ได้เลือกสถานะจำนวน ${unselectedCount} รายการ (โปรดเลือก "ปกติ" หรือ "ชำรุด" ให้ครบถ้วน หรือกด "ปกติทุกรายการ" เพื่อความรวดเร็ว)`
+        message: `มีรายการอุปกรณ์ที่ยังไม่ได้เลือกสถานะจำนวน ${unselectedCount} รายการ (โปรดตรวจเช็คและเลือก "ปกติ" หรือ "ชำรุด" ให้ครบถ้วนก่อนบันทึก)`
       });
       return;
     }
@@ -312,7 +291,7 @@ export default function TeacherInspection() {
 
       {/* Mandatory Room PIN & Teacher Name Auth Screen */}
       {!isAuthorized ? (
-        <div className="modern-glass-card rounded-3xl p-8 border border-white/80 shadow-xl max-w-md mx-auto text-center space-y-6 animate-fade-in my-8">
+        <div className="bg-white rounded-3xl p-8 border-2 border-slate-200 shadow-xl max-w-md mx-auto text-center space-y-6 animate-fade-in my-8">
           <div className="w-16 h-16 rounded-3xl bg-blue-50 text-blue-700 flex items-center justify-center mx-auto border border-blue-100 shadow-xs">
             <Lock className="w-8 h-8" />
           </div>
@@ -322,7 +301,7 @@ export default function TeacherInspection() {
               ยืนยันรหัส PIN และชื่อผู้ตรวจเช็ค {roomKey}
             </h3>
             <p className="text-xs text-slate-500 font-medium mt-1">
-              กรอกชื่อครูผู้ตรวจเช็คและรหัส PIN ประจำห้องเพื่อบันทึกประวัติลอคการใช้งาน
+              กรอกชื่อครูผู้ตรวจเช็คและรหัส PIN ประจำห้องเพื่อเข้าสู่ระบบ
             </p>
           </div>
 
@@ -413,14 +392,14 @@ export default function TeacherInspection() {
         <div className="space-y-5">
           
           {/* Action Toolbar */}
-          <div className="modern-glass p-4 rounded-3xl border border-white/80 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="bg-white p-4 rounded-3xl border-2 border-slate-200 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
             
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <span className="px-4 py-2 bg-blue-900 text-white font-extrabold font-prompt rounded-2xl text-sm shadow-xs">
                 {roomKey} ({devices.length} เครื่อง)
               </span>
 
-              <span className="px-3 py-1 bg-amber-100 text-amber-900 font-bold rounded-xl text-xs border border-amber-200">
+              <span className="px-3.5 py-1.5 bg-amber-100 text-amber-950 font-extrabold rounded-xl text-xs border border-amber-300">
                 👤 ผู้ตรวจ: {teacherSession?.teacherName}
               </span>
               
@@ -431,41 +410,31 @@ export default function TeacherInspection() {
                   placeholder="ค้น Serial No., ชื่อ-นามสกุล..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
                 />
               </div>
             </div>
 
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={handleMarkWholeRoomNormal}
-                className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl text-xs font-extrabold shadow-md shadow-emerald-500/20 transition-all flex items-center space-x-1.5"
-              >
-                <CheckCheck className="w-4 h-4" />
-                <span>ปกติทุกรายการทั้งห้อง</span>
-              </button>
-
-              <button
-                onClick={handleSaveInspections}
-                disabled={loading}
-                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-2xl text-xs transition-all shadow-md shadow-blue-600/30 flex items-center space-x-2"
-              >
-                <Save className="w-4 h-4 text-amber-300" />
-                <span>{loading ? 'กำลังบันทึก...' : 'บันทึกข้อมูลการตรวจ'}</span>
-              </button>
-            </div>
+            <button
+              onClick={handleSaveInspections}
+              disabled={loading}
+              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-2xl text-xs sm:text-sm transition-all shadow-md shadow-blue-600/30 flex items-center space-x-2"
+            >
+              <Save className="w-4 h-4 text-amber-300" />
+              <span>{loading ? 'กำลังบันทึก...' : 'บันทึกข้อมูลการตรวจ'}</span>
+            </button>
 
           </div>
 
           {/* Student Inspection Checklist List */}
           {filteredDevices.length === 0 ? (
-            <div className="modern-glass rounded-3xl p-10 text-center text-slate-500 border border-white">
+            <div className="bg-white rounded-3xl p-10 text-center text-slate-500 border-2 border-slate-200">
               <Tablet className="w-10 h-10 text-blue-400 mx-auto mb-2 opacity-50" />
               <p className="font-bold text-slate-700">ไม่พบข้อมูลอุปกรณ์ในห้องนี้</p>
               <p className="text-xs text-slate-400">กรุณาลงทะเบียนหรือนำเข้าข้อมูล CSV ในระบบหลังบ้าน</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-5">
               {filteredDevices.map((dev, index) => {
                 const devItems = formState[dev.serial_no] || {
                   tablet: { status: null, note: '' },
@@ -480,21 +449,22 @@ export default function TeacherInspection() {
                 const hasUnselected = Object.values(devItems).some(it => !it.status);
 
                 return (
+                  /* High Contrast Solid White Student Card */
                   <div 
                     key={dev.id}
-                    className={`modern-glass-card rounded-3xl border transition-all p-5 shadow-sm ${
+                    className={`bg-white rounded-3xl border-2 transition-all p-6 shadow-md ${
                       hasUnselected 
-                        ? 'border-slate-200 bg-white/90' 
+                        ? 'border-slate-300/90' 
                         : !isAllNormal 
-                        ? 'border-rose-300/90 bg-rose-50/40' 
-                        : 'border-emerald-200/90 bg-emerald-50/20'
+                        ? 'border-rose-300 bg-rose-50/20 shadow-rose-100' 
+                        : 'border-emerald-300 bg-emerald-50/10 shadow-emerald-100'
                     }`}
                   >
                     {/* Device & Owner Info Header */}
-                    <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-slate-200/60 gap-4">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-slate-200 gap-4">
                       
                       <div className="flex items-start space-x-3.5">
-                        <span className="w-8 h-8 rounded-2xl bg-blue-50 text-blue-900 font-mono font-extrabold text-xs flex items-center justify-center shrink-0 mt-0.5 border border-blue-200">
+                        <span className="w-8 h-8 rounded-2xl bg-blue-100 text-blue-900 font-mono font-extrabold text-xs flex items-center justify-center shrink-0 mt-0.5 border border-blue-200">
                           {index + 1}
                         </span>
 
@@ -506,24 +476,24 @@ export default function TeacherInspection() {
                               1. {dev.type === 'teacher' ? 'ครูผู้สอน' : 'นักเรียน'}
                             </span>
 
-                            <div className="flex items-center space-x-1.5 bg-blue-50 px-3 py-0.5 rounded-xl border border-blue-100">
-                              <span className="text-[11px] text-blue-700 font-bold">2. Serial No:</span>
-                              <span className="font-mono font-extrabold text-blue-800 text-base sm:text-lg tracking-wide">
+                            <div className="flex items-center space-x-1.5 bg-blue-50 px-3 py-0.5 rounded-xl border border-blue-200">
+                              <span className="text-[11px] text-blue-800 font-bold">2. Serial No:</span>
+                              <span className="font-mono font-extrabold text-blue-900 text-base sm:text-lg tracking-wide">
                                 {dev.serial_no}
                               </span>
                             </div>
                           </div>
 
-                          <h3 className="font-extrabold text-slate-900 text-lg sm:text-xl font-prompt pt-0.5">
+                          <h3 className="font-extrabold text-slate-900 text-xl font-prompt pt-0.5">
                             3. {dev.prefix || ''} {dev.first_name} {dev.last_name}
                           </h3>
 
-                          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 font-medium">
-                            <span>4. ชั้น: <strong className="text-slate-800 font-bold">{dev.type === 'teacher' ? 'ครู' : `${dev.grade}/${dev.room}`}</strong></span>
+                          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 font-semibold">
+                            <span>4. ชั้น: <strong className="text-slate-900 font-extrabold">{dev.type === 'teacher' ? 'ครู' : `${dev.grade}/${dev.room}`}</strong></span>
                             <span>•</span>
-                            <span>5. เลข BOX: <strong className="text-slate-800 font-mono font-bold">{dev.box_no}</strong></span>
+                            <span>5. เลข BOX: <strong className="text-slate-900 font-mono font-extrabold">{dev.box_no}</strong></span>
                             <span>•</span>
-                            <span>6. เลข BOX KB: <strong className="text-slate-800 font-mono font-bold">{dev.box_kb_no}</strong></span>
+                            <span>6. เลข BOX KB: <strong className="text-slate-900 font-mono font-extrabold">{dev.box_kb_no}</strong></span>
                           </div>
                         </div>
                       </div>
@@ -533,7 +503,7 @@ export default function TeacherInspection() {
                         className={`self-start md:self-center px-4 py-2 rounded-2xl text-xs font-extrabold transition-all flex items-center space-x-1.5 border ${
                           isAllNormal
                             ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
-                            : 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 border-slate-300 shadow-xs'
+                            : 'bg-slate-50 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 border-slate-300 shadow-xs'
                         }`}
                       >
                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
@@ -541,8 +511,8 @@ export default function TeacherInspection() {
                       </button>
                     </div>
 
-                    {/* 6 Checklist Items Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
+                    {/* 6 Checklist Items Grid (Distinct Slate-50 Background for High Contrast) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 mt-4">
                       {[
                         { key: 'tablet', label: '1. Tablet', icon: Tablet },
                         { key: 'spen', label: '2. ปากกา S Pen', icon: PenTool },
@@ -561,10 +531,10 @@ export default function TeacherInspection() {
                             key={item.key} 
                             className={`p-3.5 rounded-2xl border text-xs transition-all ${
                               isDamaged 
-                                ? 'bg-rose-100/60 border-rose-300 shadow-xs' 
+                                ? 'bg-rose-100/80 border-rose-300 shadow-xs' 
                                 : isNormal 
-                                ? 'bg-emerald-50/50 border-emerald-200' 
-                                : 'bg-white border-slate-200/80'
+                                ? 'bg-emerald-50 border-emerald-300' 
+                                : 'bg-slate-50/90 border-slate-200/90'
                             }`}
                           >
                             <div className="flex items-center justify-between gap-2 mb-2">
@@ -573,11 +543,11 @@ export default function TeacherInspection() {
                                 <span>{item.label}</span>
                               </div>
 
-                              <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200">
+                              <div className="inline-flex p-1 bg-white rounded-xl border border-slate-200 shadow-xs">
                                 <button
                                   type="button"
                                   onClick={() => handleItemStatusChange(dev.serial_no, item.key, 'normal')}
-                                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                                  className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-all ${
                                     isNormal ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
                                   }`}
                                 >
@@ -586,7 +556,7 @@ export default function TeacherInspection() {
                                 <button
                                   type="button"
                                   onClick={() => handleItemStatusChange(dev.serial_no, item.key, 'damaged')}
-                                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                                  className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-all ${
                                     isDamaged ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
                                   }`}
                                 >
@@ -601,7 +571,7 @@ export default function TeacherInspection() {
                                 placeholder="ระบุอาการชำรุด..."
                                 value={current.note || ''}
                                 onChange={(e) => handleItemNoteChange(dev.serial_no, item.key, e.target.value)}
-                                className="w-full mt-2 px-3 py-2 bg-white border border-rose-300 rounded-xl text-xs text-rose-900 focus:outline-none focus:ring-2 focus:ring-rose-500 placeholder-rose-400"
+                                className="w-full mt-2 px-3 py-2 bg-white border border-rose-300 rounded-xl text-xs text-rose-900 font-medium focus:outline-none focus:ring-2 focus:ring-rose-500 placeholder-rose-400"
                               />
                             )}
                           </div>
@@ -618,7 +588,7 @@ export default function TeacherInspection() {
           {/* Sticky Bottom Save Bar */}
           <div className="sticky bottom-4 bg-slate-900/90 backdrop-blur-md p-4 rounded-3xl border border-slate-800 shadow-2xl flex items-center justify-between text-white z-30">
             <div className="text-xs sm:text-sm text-slate-200 font-bold">
-              <span>บันทึกผลการตรวจ <strong>{roomKey}</strong> ประจำรอบที่ {config.current_round}</span>
+              <span>บันทึกผลการตรวจ <strong>{roomKey}</strong> ประจำรอบที่ {config.current_round} ({teacherSession?.teacherName})</span>
             </div>
             <button
               onClick={handleSaveInspections}
@@ -636,7 +606,7 @@ export default function TeacherInspection() {
       {/* POPUP NOTIFICATION MODAL */}
       {modalPopup && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="modern-glass bg-white/95 rounded-3xl max-w-md w-full p-6 text-center space-y-4 border border-white shadow-2xl">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 text-center space-y-4 border-2 border-slate-200 shadow-2xl">
             <div className={`w-16 h-16 rounded-3xl flex items-center justify-center mx-auto border shadow-xs ${
               modalPopup.type === 'success' 
                 ? 'bg-emerald-100 text-emerald-700 border-emerald-200' 
