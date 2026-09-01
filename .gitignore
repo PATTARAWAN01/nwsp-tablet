@@ -1,0 +1,29 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment & Local Secrets
+.env
+.env.local
+.env.*.local
+
+# Dependency directories
+node_modules/
+
+# Production build outputs
+dist/
+dist-ssr/
+*.local
+
+# Editor & Agent directories
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.gemini/

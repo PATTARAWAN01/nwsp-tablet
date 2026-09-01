@@ -1,0 +1,134 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Prompt', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-prompt: 'Prompt', sans-serif;
+}
+
+/* Force Prompt Font Globally */
+html, body, button, input, select, textarea {
+  font-family: 'Prompt', 'Inter', system-ui, -apple-system, sans-serif !important;
+}
+
+body {
+  background: radial-gradient(circle at 0% 0%, rgba(224, 242, 254, 0.6) 0%, transparent 50%),
+              radial-gradient(circle at 100% 100%, rgba(254, 243, 199, 0.5) 0%, transparent 50%),
+              linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  background-attachment: fixed;
+  min-height: 100vh;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+/* Modern Glassmorphism Styling */
+.modern-glass {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.05), 0 4px 12px -2px rgba(15, 23, 42, 0.03);
+}
+
+.modern-glass-card {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 12px 32px -4px rgba(30, 58, 138, 0.06), 0 4px 12px -2px rgba(0, 0, 0, 0.02);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.modern-glass-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 40px -4px rgba(30, 58, 138, 0.1), 0 8px 16px -2px rgba(0, 0, 0, 0.03);
+  border-color: rgba(191, 219, 254, 0.9);
+}
+
+.modern-nav {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.85);
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.04);
+}
+
+/* Ambient glow accents */
+.glow-blue {
+  box-shadow: 0 0 50px -10px rgba(37, 99, 235, 0.25);
+}
+
+.glow-amber {
+  box-shadow: 0 0 50px -10px rgba(245, 158, 11, 0.25);
+}
+
+/* ==========================================================================
+   OFFICIAL PRINT / PDF EXPORT FORMATTING (A4 Landscape with 15mm Margins)
+   ========================================================================== */
+@page {
+  size: A4 landscape;
+  margin: 15mm 12mm 15mm 12mm; /* Standard 15mm top/bottom, 12mm left/right page margins */
+}
+
+@media print {
+  html, body {
+    background: white !important;
+    color: black !important;
+    font-size: 10pt !important;
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide interactive web UI elements */
+  .no-print, header, footer, nav, button {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  /* Printable container styling */
+  .printable-document {
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    width: 100% !important;
+  }
+
+  /* Table styling & repeated page headers */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto;
+  }
+
+  thead {
+    display: table-header-group !important; /* Repeats table column headers on every page! */
+  }
+
+  tbody {
+    display: table-row-group !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important; /* Prevents tearing rows in half across page breaks */
+    page-break-after: auto;
+  }
+
+  th, td {
+    padding: 5px 8px !important;
+    border: 1px solid #cbd5e1 !important;
+  }
+
+  /* Printable Signature Footer Block */
+  .signature-block {
+    page-break-inside: avoid !important;
+    margin-top: 30px !important;
+  }
+}
