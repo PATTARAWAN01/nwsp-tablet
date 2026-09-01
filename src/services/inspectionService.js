@@ -1,6 +1,7 @@
 import { initStoreIfEmpty } from './deviceService';
 
 const INSPECTIONS_KEY = 'anywhere_tablet_inspections_v3';
+const LOGS_KEY = 'anywhere_tablet_access_logs_v3';
 
 function getLocalInspections() {
   try {
@@ -20,7 +21,71 @@ function setLocalInspections(inspections) {
   }
 }
 
+function getLocalLogs() {
+  try {
+    const data = localStorage.getItem(LOGS_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch (e) {
+    console.error("Error loading access logs:", e);
+    return [];
+  }
+}
+
+function setLocalLogs(logs) {
+  try {
+    localStorage.setItem(LOGS_KEY, JSON.stringify(logs));
+  } catch (e) {
+    console.error("Error saving access logs:", e);
+  }
+}
+
 export const inspectionService = {
+  // Add an audit log entry
+  addLog: async ({ academicYear, round, roomKey, teacherName, action, deviceCount, details }) => {
+    const logs = getLocalLogs();
+    const newLog = {
+      id: `LOG-${Date.now()}-${Math.floor(Math.random()*1000)}`,
+      academic_year: academicYear,
+      round: Number(round),
+      room_key: roomKey,
+      teacher_name: teacherName || "ครูผู้ตรวจเช็ค",
+      action: action || "บันทึกผลการตรวจเช็ค",
+      device_count: deviceCount || 0,
+      details: details || "",
+      timestamp: new Date().toISOString()
+    };
+    logs.unshift(newLog); // Put newest first
+    setLocalLogs(logs);
+    return newLog;
+  },
+
+  // Get all audit logs (with filters)
+  getLogs: async ({ academicYear, round, roomKey } = {}) => {
+    let logs = getLocalLogs();
+    if (academicYear) {
+      logs = logs.filter(l => (l.academic_year || "2569") === academicYear);
+    }
+    if (round) {
+      logs = logs.filter(l => Number(l.round) === Number(round));
+    }
+    if (roomKey && roomKey !== "ทั้งหมด") {
+      logs = logs.filter(l => l.room_key === roomKey);
+    }
+    return logs;
+  },
+
+  // Get unique teachers who logged into/inspected a given room
+  getRoomInspectors: async (academicYear, round, roomKey) => {
+    const logs = await inspectionService.getLogs({ academicYear, round, roomKey });
+    const teacherSet = new Set();
+    logs.forEach(l => {
+      if (l.teacher_name && l.teacher_name.trim() !== '') {
+        teacherSet.add(l.teacher_name.trim());
+      }
+    });
+    return Array.from(teacherSet);
+  },
+
   // Get all inspection records for a given year & round
   getInspections: async (academicYear, round) => {
     initStoreIfEmpty();
@@ -62,7 +127,7 @@ export const inspectionService = {
   },
 
   // Batch save room inspection (e.g. Mark All Normal for a room or multi-device submission)
-  saveBatchInspection: async ({ academicYear, round, recordsList, inspector }) => {
+  saveBatchInspection: async ({ academicYear, round, roomKey, recordsList, inspector }) => {
     const all = getLocalInspections();
     
     recordsList.forEach(item => {
@@ -80,6 +145,18 @@ export const inspectionService = {
     });
 
     setLocalInspections(all);
+
+    // Record audit log
+    await inspectionService.addLog({
+      academicYear,
+      round,
+      roomKey: roomKey || "ไม่ระบุห้อง",
+      teacherName: inspector || "ครูผู้ตรวจเช็ค",
+      action: "บันทึกผลการตรวจเช็คอุปกรณ์ประจำห้อง",
+      deviceCount: recordsList.length,
+      details: `บันทึกข้อมูลอุปกรณ์จำนวน ${recordsList.length} เครื่อง`
+    });
+
     return true;
   },
 

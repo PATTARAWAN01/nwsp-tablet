@@ -59,13 +59,19 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('anywhere_admin_logged');
   };
 
-  // Teacher Room login with PIN
-  const loginTeacherRoom = async (grade, room, pin) => {
-    const roomKey = `${grade}/${room}`;
+  // Teacher Room login with PIN & Teacher Name
+  const loginTeacherRoom = async (grade, room, pin, teacherName) => {
+    const roomKey = grade === 'ครู' ? 'ครู' : `${grade}/${room}`;
     const isValid = await deviceService.verifyRoomPin(roomKey, pin);
     
     if (isValid) {
-      const sessionData = { grade, room, roomKey, timestamp: Date.now() };
+      const sessionData = { 
+        grade, 
+        room, 
+        roomKey, 
+        teacherName: teacherName ? teacherName.trim() : "ครูประจำชั้น",
+        timestamp: Date.now() 
+      };
       setTeacherSession(sessionData);
       localStorage.setItem('anywhere_teacher_session', JSON.stringify(sessionData));
       return { success: true };

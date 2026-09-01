@@ -23,6 +23,7 @@ export default function ReportsView() {
   const [devices, setDevices] = useState([]);
   const [inspections, setInspections] = useState({});
   const [stats, setStats] = useState(null);
+  const [roomInspectors, setRoomInspectors] = useState([]);
 
   const loadReportData = async () => {
     setLoading(true);
@@ -39,6 +40,10 @@ export default function ReportsView() {
 
       const dashboardStats = await inspectionService.getDashboardStats(devList, selectedYear, selectedRound);
       setStats(dashboardStats);
+
+      const rKey = selectedGrade === 'ครู' ? 'ครู' : (selectedGrade !== 'ทั้งหมด' && selectedRoom !== 'ทั้งหมด' ? `${selectedGrade}/${selectedRoom}` : 'ทั้งหมด');
+      const inspectors = await inspectionService.getRoomInspectors(selectedYear, selectedRound, rKey);
+      setRoomInspectors(inspectors);
     } catch (e) {
       console.error(e);
     } finally {
@@ -313,14 +318,25 @@ export default function ReportsView() {
           </table>
         </div>
 
-        {/* Signature Footer Block */}
-        <div className="signature-block mt-12 pt-6 grid grid-cols-2 gap-8 text-center text-xs text-slate-700">
-          <div>
-            <p>ลงชื่อ..............................................................</p>
-            <p className="mt-1.5 font-bold">(............................................................)</p>
-            <p className="text-slate-500 mt-0.5">ครูที่ปรึกษา / ผู้ตรวจเช็คอุปกรณ์</p>
-          </div>
-          <div>
+        {/* Dynamic Teacher Signatures Footer Block */}
+        <div className="signature-block mt-12 pt-6 flex flex-wrap justify-around gap-6 text-center text-xs text-slate-700">
+          {roomInspectors.length > 0 ? (
+            roomInspectors.map((tName, idx) => (
+              <div key={idx} className="min-w-[220px]">
+                <p>ลงชื่อ..............................................................</p>
+                <p className="mt-1.5 font-bold">({tName})</p>
+                <p className="text-slate-500 mt-0.5">ครูผู้ตรวจเช็คอุปกรณ์ {roomInspectors.length > 1 ? `(${idx + 1})` : ''}</p>
+              </div>
+            ))
+          ) : (
+            <div className="min-w-[220px]">
+              <p>ลงชื่อ..............................................................</p>
+              <p className="mt-1.5 font-bold">(............................................................)</p>
+              <p className="text-slate-500 mt-0.5">ครูที่ปรึกษา / ผู้ตรวจเช็คอุปกรณ์</p>
+            </div>
+          )}
+
+          <div className="min-w-[220px]">
             <p>ลงชื่อ..............................................................</p>
             <p className="mt-1.5 font-bold">(............................................................)</p>
             <p className="text-slate-500 mt-0.5">หัวหน้าโครงการ / ผู้รับรองรายงาน</p>

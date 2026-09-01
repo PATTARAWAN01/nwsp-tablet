@@ -14,7 +14,10 @@ import {
   Tablet,
   PenTool,
   Keyboard,
-  Zap
+  Zap,
+  UserCheck,
+  XCircle,
+  AlertCircle
 } from 'lucide-react';
 
 export default function TeacherInspection() {
@@ -22,18 +25,21 @@ export default function TeacherInspection() {
   
   const [selectedGrade, setSelectedGrade] = useState(teacherSession ? teacherSession.grade : "ม.4");
   const [selectedRoom, setSelectedRoom] = useState(teacherSession ? teacherSession.room : "1");
+  const [teacherNameInput, setTeacherNameInput] = useState(teacherSession ? teacherSession.teacherName : "");
   const [pinInput, setPinInput] = useState("");
   const [authError, setAuthError] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [devices, setDevices] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [saveSuccessMsg, setSaveSuccessMsg] = useState("");
+
+  // Modal Popup Notification State
+  const [modalPopup, setModalPopup] = useState(null); // { type: 'success'|'error'|'warning', title: '', message: '' }
 
   const [formState, setFormState] = useState({});
 
   const roomKey = selectedGrade === 'ครู' ? 'ครู' : `${selectedGrade}/${selectedRoom}`;
-  // Enforce mandatory PIN verification per selected room (DO NOT auto-bypass with global admin session)
+  // Enforce mandatory PIN verification per selected room
   const isAuthorized = teacherSession && teacherSession.roomKey === roomKey;
 
   const loadRoomData = async () => {
@@ -58,13 +64,14 @@ export default function TeacherInspection() {
         if (existing && existing.items) {
           initialForm[dev.serial_no] = JSON.parse(JSON.stringify(existing.items));
         } else {
+          // REQUIRE MANUAL SELECTION: Do NOT pre-fill as 'normal' automatically
           initialForm[dev.serial_no] = {
-            tablet: { status: 'normal', note: '' },
-            spen: { status: 'normal', note: '' },
-            keyboard: { status: 'normal', note: '' },
-            cable_white: { status: 'normal', note: '' },
-            cable_black: { status: 'normal', note: '' },
-            adapter: { status: 'normal', note: '' }
+            tablet: { status: null, note: '' },
+            spen: { status: null, note: '' },
+            keyboard: { status: null, note: '' },
+            cable_white: { status: null, note: '' },
+            cable_black: { status: null, note: '' },
+            adapter: { status: null, note: '' }
           };
         }
       });
@@ -86,7 +93,11 @@ export default function TeacherInspection() {
   const handlePinSubmit = async (e) => {
     e.preventDefault();
     setAuthError("");
-    const res = await loginTeacherRoom(selectedGrade, selectedRoom, pinInput);
+    if (!teacherNameInput || teacherNameInput.trim() === "") {
+      setAuthError("กรุณากรอกชื่อ-นามสกุล ครูผู้ตรวจเช็ค");
+      return;
+    }
+    const res = await loginTeacherRoom(selectedGrade, selectedRoom, pinInput, teacherNameInput);
     if (!res.success) {
       setAuthError(res.message);
     } else {
@@ -97,12 +108,12 @@ export default function TeacherInspection() {
   const handleItemStatusChange = (serialNo, itemKey, status) => {
     setFormState(prev => {
       const currentDevItems = prev[serialNo] || {
-        tablet: { status: 'normal', note: '' },
-        spen: { status: 'normal', note: '' },
-        keyboard: { status: 'normal', note: '' },
-        cable_white: { status: 'normal', note: '' },
-        cable_black: { status: 'normal', note: '' },
-        adapter: { status: 'normal', note: '' }
+        tablet: { status: null, note: '' },
+        spen: { status: null, note: '' },
+        keyboard: { status: null, note: '' },
+        cable_white: { status: null, note: '' },
+        cable_black: { status: null, note: '' },
+        adapter: { status: null, note: '' }
       };
 
       return {
@@ -170,8 +181,25 @@ export default function TeacherInspection() {
   };
 
   const handleSaveInspections = async () => {
+    // Validate if any items are left unselected (null)
+    let unselectedCount = 0;
+    devices.forEach(dev => {
+      const items = formState[dev.serial_no] || {};
+      Object.values(items).forEach(it => {
+        if (!it.status) unselectedCount++;
+      });
+    });
+
+    if (unselectedCount > 0) {
+      setModalPopup({
+        type: 'warning',
+        title: 'ข้อมูลยังไม่ครบถ้วน!',
+        message: `มีรายการอุปกรณ์ที่ยังไม่ได้เลือกสถานะจำนวน ${unselectedCount} รายการ (โปรดเลือก "ปกติ" หรือ "ชำรุด" ให้ครบถ้วน หรือกด "ปกติทุกรายการ" เพื่อความรวดเร็ว)`
+      });
+      return;
+    }
+
     setLoading(true);
-    setSaveSuccessMsg("");
     try {
       const recordsToSave = devices.map(dev => ({
         serial_no: dev.serial_no,
@@ -179,18 +207,29 @@ export default function TeacherInspection() {
         items: formState[dev.serial_no]
       }));
 
+      const inspectorName = teacherSession ? teacherSession.teacherName : "ครูประจำชั้น";
+
       await inspectionService.saveBatchInspection({
         academicYear: config.current_academic_year,
         round: config.current_round,
+        roomKey: roomKey,
         recordsList: recordsToSave,
-        inspector: teacherSession ? `ครูที่ปรึกษา (${roomKey})` : "Admin"
+        inspector: inspectorName
       });
 
-      setSaveSuccessMsg(`บันทึกผลการตรวจเช็ค ${roomKey} สำเร็จเรียบร้อย!`);
-      setTimeout(() => setSaveSuccessMsg(""), 4000);
+      setModalPopup({
+        type: 'success',
+        title: 'บันทึกข้อมูลสำเร็จ! 🎉',
+        message: `บันทึกผลการตรวจเช็คอุปกรณ์ห้อง ${roomKey} (รอบที่ ${config.current_round}) จำนวน ${devices.length} เครื่อง โดย ${inspectorName} เรียบร้อยแล้ว`
+      });
+
       await loadRoomData();
     } catch (e) {
-      alert("เกิดข้อผิดพลาดในการบันทึก: " + e.message);
+      setModalPopup({
+        type: 'error',
+        title: 'บันทึกข้อมูลไม่สำเร็จ!',
+        message: `เกิดข้อผิดพลาด: ${e.message}`
+      });
     } finally {
       setLoading(false);
     }
@@ -219,7 +258,7 @@ export default function TeacherInspection() {
             ตรวจเช็คอุปกรณ์ (รอบที่ {config.current_round} / 5)
           </h2>
           <p className="text-slate-300 text-xs sm:text-sm mt-1 font-light">
-            ปีการศึกษา {config.current_academic_year} • โรงเรียนหนองวัวซอพิทยาคม
+            ปีการศึกษา {config.current_academic_year} • โรงเรียนหนองวัวซอพิทยาคม {teacherSession ? `• ผู้ตรวจ: ${teacherSession.teacherName}` : ''}
           </p>
         </div>
 
@@ -271,7 +310,7 @@ export default function TeacherInspection() {
         </div>
       </div>
 
-      {/* Mandatory Room PIN Auth Screen */}
+      {/* Mandatory Room PIN & Teacher Name Auth Screen */}
       {!isAuthorized ? (
         <div className="modern-glass-card rounded-3xl p-8 border border-white/80 shadow-xl max-w-md mx-auto text-center space-y-6 animate-fade-in my-8">
           <div className="w-16 h-16 rounded-3xl bg-blue-50 text-blue-700 flex items-center justify-center mx-auto border border-blue-100 shadow-xs">
@@ -280,10 +319,10 @@ export default function TeacherInspection() {
 
           <div>
             <h3 className="text-xl font-extrabold font-prompt text-slate-900">
-              ยืนยันรหัส PIN เข้าใช้งาน {roomKey}
+              ยืนยันรหัส PIN และชื่อผู้ตรวจเช็ค {roomKey}
             </h3>
             <p className="text-xs text-slate-500 font-medium mt-1">
-              ครูที่ปรึกษากรอกรหัส PIN ประจำห้องเพื่อเข้าทำรายการตรวจเช็ค
+              กรอกชื่อครูผู้ตรวจเช็คและรหัส PIN ประจำห้องเพื่อบันทึกประวัติลอคการใช้งาน
             </p>
           </div>
 
@@ -324,6 +363,21 @@ export default function TeacherInspection() {
             </div>
 
             <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">ชื่อ-นามสกุล ครูผู้ตรวจเช็ค:</label>
+              <div className="relative">
+                <UserCheck className="w-5 h-5 text-slate-400 absolute left-3.5 top-3.5" />
+                <input
+                  type="text"
+                  placeholder="เช่น นายสมชาย วิชาการ"
+                  value={teacherNameInput}
+                  onChange={(e) => setTeacherNameInput(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3 bg-white border border-slate-300 rounded-2xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">รหัส PIN ประจำห้อง:</label>
               <div className="relative">
                 <KeyRound className="w-5 h-5 text-slate-400 absolute left-3.5 top-3.5" />
@@ -358,22 +412,16 @@ export default function TeacherInspection() {
         /* Authorized Room Inspection Content */
         <div className="space-y-5">
           
-          {/* Toast Notification */}
-          {saveSuccessMsg && (
-            <div className="p-4 bg-emerald-600 text-white rounded-2xl shadow-lg flex items-center justify-between font-bold text-sm animate-fade-in">
-              <div className="flex items-center space-x-2">
-                <CheckCircle2 className="w-5 h-5 text-amber-300" />
-                <span>{saveSuccessMsg}</span>
-              </div>
-            </div>
-          )}
-
           {/* Action Toolbar */}
           <div className="modern-glass p-4 rounded-3xl border border-white/80 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
             
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <span className="px-4 py-2 bg-blue-900 text-white font-extrabold font-prompt rounded-2xl text-sm shadow-xs">
                 {roomKey} ({devices.length} เครื่อง)
+              </span>
+
+              <span className="px-3 py-1 bg-amber-100 text-amber-900 font-bold rounded-xl text-xs border border-amber-200">
+                👤 ผู้ตรวจ: {teacherSession?.teacherName}
               </span>
               
               <div className="relative w-full sm:w-64">
@@ -420,21 +468,26 @@ export default function TeacherInspection() {
             <div className="space-y-4">
               {filteredDevices.map((dev, index) => {
                 const devItems = formState[dev.serial_no] || {
-                  tablet: { status: 'normal', note: '' },
-                  spen: { status: 'normal', note: '' },
-                  keyboard: { status: 'normal', note: '' },
-                  cable_white: { status: 'normal', note: '' },
-                  cable_black: { status: 'normal', note: '' },
-                  adapter: { status: 'normal', note: '' }
+                  tablet: { status: null, note: '' },
+                  spen: { status: null, note: '' },
+                  keyboard: { status: null, note: '' },
+                  cable_white: { status: null, note: '' },
+                  cable_black: { status: null, note: '' },
+                  adapter: { status: null, note: '' }
                 };
 
-                const isAllNormal = Object.values(devItems).every(it => it.status === 'normal');
+                const isAllNormal = Object.values(devItems).length > 0 && Object.values(devItems).every(it => it.status === 'normal');
+                const hasUnselected = Object.values(devItems).some(it => !it.status);
 
                 return (
                   <div 
                     key={dev.id}
                     className={`modern-glass-card rounded-3xl border transition-all p-5 shadow-sm ${
-                      !isAllNormal ? 'border-amber-300/90 bg-amber-50/40' : 'border-white/90'
+                      hasUnselected 
+                        ? 'border-slate-200 bg-white/90' 
+                        : !isAllNormal 
+                        ? 'border-rose-300/90 bg-rose-50/40' 
+                        : 'border-emerald-200/90 bg-emerald-50/20'
                     }`}
                   >
                     {/* Device & Owner Info Header */}
@@ -499,19 +552,24 @@ export default function TeacherInspection() {
                         { key: 'adapter', label: '6. Adapter', icon: Zap }
                       ].map((item) => {
                         const Icon = item.icon;
-                        const current = devItems[item.key] || { status: 'normal', note: '' };
+                        const current = devItems[item.key] || { status: null, note: '' };
+                        const isNormal = current.status === 'normal';
                         const isDamaged = current.status === 'damaged';
 
                         return (
                           <div 
                             key={item.key} 
                             className={`p-3.5 rounded-2xl border text-xs transition-all ${
-                              isDamaged ? 'bg-rose-100/60 border-rose-300 shadow-xs' : 'bg-white/80 border-slate-200/80'
+                              isDamaged 
+                                ? 'bg-rose-100/60 border-rose-300 shadow-xs' 
+                                : isNormal 
+                                ? 'bg-emerald-50/50 border-emerald-200' 
+                                : 'bg-white border-slate-200/80'
                             }`}
                           >
                             <div className="flex items-center justify-between gap-2 mb-2">
                               <div className="flex items-center space-x-2 font-bold text-slate-800">
-                                <Icon className={`w-4 h-4 ${isDamaged ? 'text-rose-600' : 'text-blue-600'}`} />
+                                <Icon className={`w-4 h-4 ${isDamaged ? 'text-rose-600' : isNormal ? 'text-emerald-600' : 'text-slate-400'}`} />
                                 <span>{item.label}</span>
                               </div>
 
@@ -520,7 +578,7 @@ export default function TeacherInspection() {
                                   type="button"
                                   onClick={() => handleItemStatusChange(dev.serial_no, item.key, 'normal')}
                                   className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                                    !isDamaged ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                                    isNormal ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
                                   }`}
                                 >
                                   ปกติ
@@ -572,6 +630,47 @@ export default function TeacherInspection() {
             </button>
           </div>
 
+        </div>
+      )}
+
+      {/* POPUP NOTIFICATION MODAL */}
+      {modalPopup && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="modern-glass bg-white/95 rounded-3xl max-w-md w-full p-6 text-center space-y-4 border border-white shadow-2xl">
+            <div className={`w-16 h-16 rounded-3xl flex items-center justify-center mx-auto border shadow-xs ${
+              modalPopup.type === 'success' 
+                ? 'bg-emerald-100 text-emerald-700 border-emerald-200' 
+                : modalPopup.type === 'warning'
+                ? 'bg-amber-100 text-amber-800 border-amber-200'
+                : 'bg-rose-100 text-rose-700 border-rose-200'
+            }`}>
+              {modalPopup.type === 'success' && <CheckCircle2 className="w-9 h-9" />}
+              {modalPopup.type === 'warning' && <AlertCircle className="w-9 h-9" />}
+              {modalPopup.type === 'error' && <XCircle className="w-9 h-9" />}
+            </div>
+
+            <div>
+              <h3 className="text-xl font-extrabold font-prompt text-slate-900">
+                {modalPopup.title}
+              </h3>
+              <p className="text-xs text-slate-600 font-medium mt-2 leading-relaxed">
+                {modalPopup.message}
+              </p>
+            </div>
+
+            <button
+              onClick={() => setModalPopup(null)}
+              className={`w-full py-3 rounded-2xl font-extrabold text-sm transition-all shadow-md ${
+                modalPopup.type === 'success'
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30'
+                  : modalPopup.type === 'warning'
+                  ? 'bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-amber-400/30'
+                  : 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/30'
+              }`}
+            >
+              ตกลง
+            </button>
+          </div>
         </div>
       )}
 

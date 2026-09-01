@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { deviceService } from '../services/deviceService';
+import { inspectionService } from '../services/inspectionService';
 import Papa from 'papaparse';
 import { 
   ShieldCheck, 
@@ -18,7 +19,11 @@ import {
   FileSpreadsheet,
   Save,
   KeyRound,
-  RotateCcw
+  RotateCcw,
+  History,
+  UserCheck,
+  AlertCircle,
+  XCircle
 } from 'lucide-react';
 
 export default function AdminManagement() {
@@ -57,9 +62,13 @@ export default function AdminManagement() {
 
   const [newYearInput, setNewYearInput] = useState("");
   const [newPassInput, setNewPassInput] = useState("");
-  const [settingsMsg, setSettingsMsg] = useState("");
 
   const [roomPins, setRoomPins] = useState({});
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [logFilterRoom, setLogFilterRoom] = useState("ทั้งหมด");
+
+  // Popup Modal Alert
+  const [modalPopup, setModalPopup] = useState(null);
 
   const loadAdminData = async () => {
     if (!isAdmin) return;
@@ -70,6 +79,12 @@ export default function AdminManagement() {
 
       const pins = await deviceService.getRoomPins();
       setRoomPins(pins);
+
+      const logs = await inspectionService.getLogs({
+        academicYear: config.current_academic_year,
+        round: config.current_round
+      });
+      setAuditLogs(logs);
     } catch (e) {
       console.error(e);
     } finally {
@@ -81,7 +96,7 @@ export default function AdminManagement() {
     if (isAdmin) {
       loadAdminData();
     }
-  }, [isAdmin, config.current_academic_year]);
+  }, [isAdmin, config.current_academic_year, config.current_round]);
 
   const handleAdminLogin = async (e) => {
     e.preventDefault();
@@ -99,16 +114,28 @@ export default function AdminManagement() {
     try {
       if (editingId) {
         await deviceService.updateDevice(editingId, formData);
-        alert("อัปเดตข้อมูลสำเร็จ!");
+        setModalPopup({
+          type: 'success',
+          title: 'อัปเดตข้อมูลสำเร็จ! 🎉',
+          message: `แก้ไขข้อมูลอุปกรณ์ ${formData.serial_no} เรียบร้อยแล้ว`
+        });
       } else {
         await deviceService.addDevice(formData);
-        alert("เพิ่มข้อมูลอุปกรณ์สำเร็จ!");
+        setModalPopup({
+          type: 'success',
+          title: 'เพิ่มข้อมูลอุปกรณ์สำเร็จ! 🎉',
+          message: `เพิ่มอุปกรณ์ ${formData.serial_no} ของ ${formData.prefix || ''} ${formData.first_name} ${formData.last_name} เรียบร้อยแล้ว`
+        });
       }
       setShowFormModal(false);
       resetForm();
       await loadAdminData();
     } catch (err) {
-      alert("เกิดข้อผิดพลาด: " + err.message);
+      setModalPopup({
+        type: 'error',
+        title: 'ทำรายการไม่สำเร็จ!',
+        message: err.message
+      });
     }
   };
 
@@ -148,6 +175,11 @@ export default function AdminManagement() {
   const handleDelete = async (id, name) => {
     if (window.confirm(`ยืนยันการลบข้อมูลอุปกรณ์ของ ${name}?`)) {
       await deviceService.deleteDevice(id);
+      setModalPopup({
+        type: 'success',
+        title: 'ลบข้อมูลสำเร็จ!',
+        message: `ลบข้อมูลของ ${name} ออกจากระบบแล้ว`
+      });
       await loadAdminData();
     }
   };
@@ -155,7 +187,11 @@ export default function AdminManagement() {
   const handleClearAllData = async () => {
     if (window.confirm("⚠️ ยืนยันการลบข้อมูลตัวอย่างทั้งหมดออกจากระบบใช่หรือไม่?\n(ระบบจะเริ่มจากฐานข้อมูลว่างเปล่า พร้อมสำหรับนำเข้าข้อมูลจริง)")) {
       await deviceService.clearAllDevices();
-      alert("ลบข้อมูลตัวอย่างทั้งหมดเรียบร้อยแล้ว!");
+      setModalPopup({
+        type: 'success',
+        title: 'ล้างข้อมูลสำเร็จ!',
+        message: 'ลบข้อมูลตัวอย่างทั้งหมดเรียบร้อยแล้ว ฐานข้อมูลว่างเปล่าพร้อมใช้งานจริง'
+      });
       await loadAdminData();
     }
   };
@@ -172,7 +208,11 @@ export default function AdminManagement() {
         setCsvParsed(results.data);
       },
       error: (err) => {
-        alert("เกิดข้อผิดพลาดในการอ่านไฟล์ CSV: " + err.message);
+        setModalPopup({
+          type: 'error',
+          title: 'อ่านไฟล์ CSV ไม่สำเร็จ!',
+          message: err.message
+        });
       }
     });
   };
@@ -183,9 +223,18 @@ export default function AdminManagement() {
     try {
       const res = await deviceService.importCSVDevices(csvParsed, csvTargetYear);
       setImportStatus(res);
+      setModalPopup({
+        type: 'success',
+        title: 'นำเข้าข้อมูล CSV สำเร็จ! 🎉',
+        message: `เพิ่มข้อมูลใหม่ ${res.addedCount} เครื่อง, อัปเดต ${res.updatedCount} เครื่อง`
+      });
       await loadAdminData();
     } catch (e) {
-      alert("การนำเข้าข้อมูลล้มเหลว: " + e.message);
+      setModalPopup({
+        type: 'error',
+        title: 'การนำเข้าข้อมูลล้มเหลว!',
+        message: e.message
+      });
     } finally {
       setLoading(false);
     }
@@ -209,7 +258,6 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
 
   const handleSaveSettings = async (e) => {
     e.preventDefault();
-    setSettingsMsg("");
     let years = [...(config.academic_years || ["2569"])];
 
     if (newYearInput && !years.includes(newYearInput.trim())) {
@@ -222,10 +270,14 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
       adminPassword: newPassInput ? newPassInput.trim() : config.admin_password
     });
 
-    setSettingsMsg("บันทึกการตั้งค่าระบบเรียบร้อยแล้ว!");
+    setModalPopup({
+      type: 'success',
+      title: 'บันทึกการตั้งค่าสำเร็จ! 🎉',
+      message: 'อัปเดตปีการศึกษา รอบการตรวจ และรหัสผ่านระบบเรียบร้อยแล้ว'
+    });
+
     setNewYearInput("");
     setNewPassInput("");
-    setTimeout(() => setSettingsMsg(""), 3000);
   };
 
   const handlePinChange = async (roomKey, pinValue) => {
@@ -246,6 +298,11 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
         d.box_no.toLowerCase().includes(q)
       );
     }
+    return true;
+  });
+
+  const filteredLogs = auditLogs.filter(l => {
+    if (logFilterRoom !== "ทั้งหมด" && l.room_key !== logFilterRoom) return false;
     return true;
   });
 
@@ -349,6 +406,18 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
         >
           <Upload className="w-4 h-4" />
           <span>นำเข้าข้อมูล (CSV)</span>
+        </button>
+
+        <button
+          onClick={() => setAdminSubTab('logs')}
+          className={`flex items-center space-x-2 px-4 py-2.5 rounded-2xl text-xs font-extrabold transition-all ${
+            adminSubTab === 'logs'
+              ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-400/20'
+              : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+          }`}
+        >
+          <History className="w-4 h-4" />
+          <span>ประวัติลอคการเข้าใช้งาน ({auditLogs.length})</span>
         </button>
 
         <button
@@ -606,18 +675,84 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
         </div>
       )}
 
-      {/* --- SUB TAB 3: SETTINGS --- */}
+      {/* --- SUB TAB 3: AUDIT LOGS --- */}
+      {adminSubTab === 'logs' && (
+        <div className="modern-glass rounded-3xl p-6 border border-white/80 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/60">
+            <div>
+              <h3 className="text-lg font-bold font-prompt text-slate-900">
+                ประวัติและลอคการเข้าใช้งาน (Audit Logs & Entry History)
+              </h3>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">
+                ติดตามสถิติและประวัติว่าครูท่านใดเข้ามาบันทึกผลการตรวจเช็คในแต่ละห้อง
+              </p>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <span className="text-xs font-bold text-slate-600">กรองห้อง:</span>
+              <select
+                value={logFilterRoom}
+                onChange={(e) => setLogFilterRoom(e.target.value)}
+                className="bg-white border border-slate-200 text-slate-800 text-xs px-3 py-2 rounded-xl font-bold focus:outline-none"
+              >
+                <option value="ทั้งหมด">ทุกห้องเรียน</option>
+                {Object.keys(DEFAULT_ROOM_PINS || {}).map(rk => (
+                  <option key={rk} value={rk}>ห้อง {rk}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {filteredLogs.length === 0 ? (
+            <div className="p-10 text-center text-slate-500">
+              <History className="w-10 h-10 text-slate-400 mx-auto mb-2 opacity-60" />
+              <p className="font-bold text-slate-700">ยังไม่มีประวัติการบันทึกข้อมูล</p>
+              <p className="text-xs text-slate-400">เมื่อครูผู้สอนบันทึกผลการตรวจเช็ค ประวัติและชื่อจะปรากฏในหน้านี้</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-700">
+                <thead className="bg-slate-50 text-slate-900 font-bold uppercase border-b border-slate-200">
+                  <tr>
+                    <th className="p-3">วัน-เวลาที่เข้าทำรายการ</th>
+                    <th className="p-3 text-blue-900">ห้องเรียน</th>
+                    <th className="p-3 text-slate-900 font-extrabold">ชื่อ-นามสกุล ครูผู้ตรวจเช็ค</th>
+                    <th className="p-3">การทำรายการ</th>
+                    <th className="p-3 text-center">จำนวนอุปกรณ์</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white/60">
+                  {filteredLogs.map((log) => (
+                    <tr key={log.id} className="hover:bg-blue-50/30 transition-colors">
+                      <td className="p-3 font-mono text-slate-500">
+                        {new Date(log.timestamp).toLocaleString('th-TH')}
+                      </td>
+                      <td className="p-3 font-extrabold text-blue-900 font-prompt">
+                        ห้อง {log.room_key}
+                      </td>
+                      <td className="p-3 font-bold text-slate-900 font-prompt text-sm">
+                        <span className="inline-flex items-center space-x-1.5 bg-blue-50 text-blue-900 px-2.5 py-1 rounded-xl border border-blue-200">
+                          <UserCheck className="w-3.5 h-3.5 text-blue-600 mr-1" />
+                          {log.teacher_name}
+                        </span>
+                      </td>
+                      <td className="p-3 font-semibold text-slate-700">{log.action}</td>
+                      <td className="p-3 text-center font-mono font-extrabold text-slate-900">{log.device_count} เครื่อง</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* --- SUB TAB 4: SETTINGS --- */}
       {adminSubTab === 'settings' && (
         <div className="modern-glass rounded-3xl p-6 border border-white/80 shadow-sm max-w-2xl space-y-6">
           <h3 className="text-lg font-bold font-prompt text-slate-900 pb-3 border-b border-slate-200/60">
             ตั้งค่าปีการศึกษา รอบการตรวจ และรหัสผ่าน Admin
           </h3>
-
-          {settingsMsg && (
-            <div className="p-3.5 bg-emerald-50 text-emerald-800 rounded-2xl text-xs font-bold border border-emerald-200">
-              {settingsMsg}
-            </div>
-          )}
 
           <form onSubmit={handleSaveSettings} className="space-y-5 text-sm font-sarabun">
             <div>
@@ -694,7 +829,7 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
         </div>
       )}
 
-      {/* --- SUB TAB 4: ROOM PINS --- */}
+      {/* --- SUB TAB 5: ROOM PINS --- */}
       {adminSubTab === 'pins' && (
         <div className="modern-glass rounded-3xl p-6 border border-white/80 shadow-sm space-y-6">
           <div>
@@ -885,6 +1020,47 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* POPUP NOTIFICATION MODAL */}
+      {modalPopup && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="modern-glass bg-white/95 rounded-3xl max-w-md w-full p-6 text-center space-y-4 border border-white shadow-2xl">
+            <div className={`w-16 h-16 rounded-3xl flex items-center justify-center mx-auto border shadow-xs ${
+              modalPopup.type === 'success' 
+                ? 'bg-emerald-100 text-emerald-700 border-emerald-200' 
+                : modalPopup.type === 'warning'
+                ? 'bg-amber-100 text-amber-800 border-amber-200'
+                : 'bg-rose-100 text-rose-700 border-rose-200'
+            }`}>
+              {modalPopup.type === 'success' && <CheckCircle2 className="w-9 h-9" />}
+              {modalPopup.type === 'warning' && <AlertCircle className="w-9 h-9" />}
+              {modalPopup.type === 'error' && <XCircle className="w-9 h-9" />}
+            </div>
+
+            <div>
+              <h3 className="text-xl font-extrabold font-prompt text-slate-900">
+                {modalPopup.title}
+              </h3>
+              <p className="text-xs text-slate-600 font-medium mt-2 leading-relaxed">
+                {modalPopup.message}
+              </p>
+            </div>
+
+            <button
+              onClick={() => setModalPopup(null)}
+              className={`w-full py-3 rounded-2xl font-extrabold text-sm transition-all shadow-md ${
+                modalPopup.type === 'success'
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30'
+                  : modalPopup.type === 'warning'
+                  ? 'bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-amber-400/30'
+                  : 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/30'
+              }`}
+            >
+              ตกลง
+            </button>
           </div>
         </div>
       )}
