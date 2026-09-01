@@ -4,7 +4,6 @@ import { deviceService } from '../services/deviceService';
 import { inspectionService } from '../services/inspectionService';
 import { 
   CheckCircle2, 
-  AlertTriangle, 
   Save, 
   Lock, 
   KeyRound, 
@@ -15,13 +14,11 @@ import {
   Tablet,
   PenTool,
   Keyboard,
-  Zap,
-  Filter,
-  Check
+  Zap
 } from 'lucide-react';
 
 export default function TeacherInspection() {
-  const { config, teacherSession, loginTeacherRoom, logoutTeacher, isAdmin } = useAuth();
+  const { config, teacherSession, loginTeacherRoom, logoutTeacher } = useAuth();
   
   const [selectedGrade, setSelectedGrade] = useState(teacherSession ? teacherSession.grade : "ม.4");
   const [selectedRoom, setSelectedRoom] = useState(teacherSession ? teacherSession.room : "1");
@@ -36,7 +33,8 @@ export default function TeacherInspection() {
   const [formState, setFormState] = useState({});
 
   const roomKey = selectedGrade === 'ครู' ? 'ครู' : `${selectedGrade}/${selectedRoom}`;
-  const isAuthorized = isAdmin || (teacherSession && teacherSession.roomKey === roomKey);
+  // Enforce mandatory PIN verification per selected room (DO NOT auto-bypass with global admin session)
+  const isAuthorized = teacherSession && teacherSession.roomKey === roomKey;
 
   const loadRoomData = async () => {
     if (!isAuthorized) return;
@@ -272,7 +270,7 @@ export default function TeacherInspection() {
         </div>
       </div>
 
-      {/* Auth Screen (If PIN is required and not verified) */}
+      {/* Mandatory Room PIN Auth Screen */}
       {!isAuthorized ? (
         <div className="modern-glass-card rounded-3xl p-8 border border-white/80 shadow-xl max-w-md mx-auto text-center space-y-6 animate-fade-in my-8">
           <div className="w-16 h-16 rounded-3xl bg-blue-50 text-blue-700 flex items-center justify-center mx-auto border border-blue-100 shadow-xs">
@@ -281,10 +279,10 @@ export default function TeacherInspection() {
 
           <div>
             <h3 className="text-xl font-extrabold font-prompt text-slate-900">
-              เข้าสู่หน้าตรวจเช็ค {roomKey}
+              ยืนยันรหัส PIN เข้าใช้งาน {roomKey}
             </h3>
             <p className="text-xs text-slate-500 font-medium mt-1">
-              กรอกรหัส PIN ประจำห้องเพื่อเริ่มการตรวจเช็คอุปกรณ์
+              ครูที่ปรึกษากรอกรหัส PIN ประจำห้องเพื่อเข้าทำรายการตรวจเช็ค
             </p>
           </div>
 

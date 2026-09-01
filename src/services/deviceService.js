@@ -10,6 +10,7 @@ const DEVICES_KEY = 'anywhere_tablet_devices_v3';
 const CONFIG_KEY = 'anywhere_tablet_config_v3';
 const PINS_KEY = 'anywhere_tablet_room_pins_v3';
 const INSPECTIONS_KEY = 'anywhere_tablet_inspections_v3';
+const CLEARED_KEY = 'anywhere_tablet_cleared_v3';
 
 function getLocalData(key, defaultVal) {
   try {
@@ -30,11 +31,16 @@ function setLocalData(key, value) {
 }
 
 export function initStoreIfEmpty() {
+  const isCleared = getLocalData(CLEARED_KEY, false);
   let devices = getLocalData(DEVICES_KEY, null);
-  if (!devices || devices.length === 0) {
+  
+  if (!isCleared && (!devices || devices.length === 0)) {
     devices = generateSampleDevices();
     setLocalData(DEVICES_KEY, devices);
     console.log(`Initialized ${devices.length} sample devices (M.4 - M.6, 4 rooms per grade & Teachers)`);
+  } else if (!devices) {
+    devices = [];
+    setLocalData(DEVICES_KEY, []);
   }
 
   let config = getLocalData(CONFIG_KEY, null);
@@ -54,9 +60,12 @@ export function initStoreIfEmpty() {
   }
 
   let inspections = getLocalData(INSPECTIONS_KEY, null);
-  if (!inspections) {
+  if (!isCleared && !inspections) {
     inspections = generateSampleInspections(devices);
     setLocalData(INSPECTIONS_KEY, inspections);
+  } else if (!inspections) {
+    inspections = {};
+    setLocalData(INSPECTIONS_KEY, {});
   }
 
   return { devices, config, pins };
@@ -138,6 +147,7 @@ export const deviceService = {
   },
 
   clearAllDevices: async () => {
+    setLocalData(CLEARED_KEY, true);
     setLocalData(DEVICES_KEY, []);
     setLocalData(INSPECTIONS_KEY, {});
     return true;

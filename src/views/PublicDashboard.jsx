@@ -1,28 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { deviceService } from '../services/deviceService';
-import { inspectionService, getCategoryLabel } from '../services/inspectionService';
+import { inspectionService } from '../services/inspectionService';
 import { 
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, RadialBarChart, RadialBar
+  BarChart, Bar, XAxis, YAxis, CartesianGrid
 } from 'recharts';
 import { 
-  Tablet, 
   CheckCircle2, 
   AlertTriangle, 
   Clock, 
-  PenTool, 
-  Keyboard, 
-  Zap, 
   RefreshCw,
   Filter,
   Calendar,
-  Layers,
   Sparkles,
   PieChart as PieIcon,
   BarChart3,
-  TrendingUp,
-  Activity
+  TrendingUp
 } from 'lucide-react';
 
 export default function PublicDashboard() {
@@ -115,15 +109,20 @@ export default function PublicDashboard() {
     { name: 'ยังไม่ได้ตรวจเช็ค', value: stats.uncheckedCount, color: '#CBD5E1' }
   ];
 
-  // Data for 6 Category Breakdown Bar Chart
-  const categoryBarData = [
-    { name: 'Tablet', count: stats.damagedBreakdown.tablet, fill: '#3B82F6' },
-    { name: 'S Pen', count: stats.damagedBreakdown.spen, fill: '#8B5CF6' },
-    { name: 'คีย์บอร์ด', count: stats.damagedBreakdown.keyboard, fill: '#6366F1' },
-    { name: 'สาย Tablet', count: stats.damagedBreakdown.cable_white, fill: '#F59E0B' },
-    { name: 'สาย KB', count: stats.damagedBreakdown.cable_black, fill: '#64748B' },
-    { name: 'Adapter', count: stats.damagedBreakdown.adapter, fill: '#10B981' }
+  // Data for 6 Category Breakdown Progress Bars (Matching user's attached design)
+  const totalDamagedItemsCount = Object.values(stats.damagedBreakdown).reduce((a, b) => a + b, 0);
+
+  const categoryProgressList = [
+    { label: 'Tablet', count: stats.damagedBreakdown.tablet, unit: 'เครื่อง', color: 'bg-blue-600' },
+    { label: 'ปากกา S Pen', count: stats.damagedBreakdown.spen, unit: 'ด้าม', color: 'bg-purple-600' },
+    { label: 'คีย์บอร์ด', count: stats.damagedBreakdown.keyboard, unit: 'ชิ้น', color: 'bg-indigo-600' },
+    { label: 'สาย Tablet (ขาว)', count: stats.damagedBreakdown.cable_white, unit: 'เส้น', color: 'bg-amber-500' },
+    { label: 'สาย KB (ดำ)', count: stats.damagedBreakdown.cable_black, unit: 'เส้น', color: 'bg-slate-700' },
+    { label: 'Adapter', count: stats.damagedBreakdown.adapter, unit: 'หัว', color: 'bg-emerald-600' }
   ];
+
+  // Calculate max for bar percentage scaling
+  const maxDamagedCount = Math.max(...categoryProgressList.map(c => c.count), 1);
 
   return (
     <div className="space-y-6">
@@ -201,11 +200,11 @@ export default function PublicDashboard() {
               <Sparkles className="w-3.5 h-3.5" />
               <span>แดชบอร์ดสรุปผลการตรวจเช็คระบบ Tablet</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white leading-tight">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white leading-tight font-prompt">
               ภาพรวมการตรวจเช็คอุปกรณ์ Tablet
             </h2>
             <p className="text-slate-300 text-xs sm:text-sm font-light max-w-xl">
-              โครงการ Anywhere Anytime โรงเรียนหนองวัวซอพิทยาคม • แสดงสถิติกราฟวิเคราะห์ข้อมูลแบบปฏิสัมพันธ์ (Interactive Charts)
+              โครงการ Anywhere Anytime โรงเรียนหนองวัวซอพิทยาคม
             </p>
           </div>
 
@@ -231,14 +230,14 @@ export default function PublicDashboard() {
             </div>
 
             <div>
-              <span className="text-xs text-amber-200 font-bold block uppercase tracking-wider">ตรวจเช็คแล้ว</span>
-              <p className="text-xs text-slate-200 mt-0.5">{stats.checkedCount} / {stats.totalDevices} เครื่อง</p>
+              <span className="text-xs text-amber-200 font-bold block uppercase tracking-wider">ความคืบหน้า</span>
+              <p className="text-xs text-slate-200 mt-0.5">ตรวจแล้ว {stats.checkedCount} / {stats.totalDevices} เครื่อง</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Interactive Charts Row 1: Donut Pie Chart & Category Bar Chart */}
+      {/* Interactive Charts Row 1: Donut Pie Chart & Attached Design Category Bars */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* CHART 1: Donut Pie Chart (Overall Status Breakdown) */}
@@ -249,7 +248,7 @@ export default function PublicDashboard() {
                 <PieIcon className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-base font-extrabold text-slate-900">สัดส่วนสถานะอุปกรณ์ทั้งหมด</h3>
+                <h3 className="text-base font-extrabold text-slate-900 font-prompt">สัดส่วนสถานะอุปกรณ์ทั้งหมด</h3>
                 <p className="text-xs text-slate-500">ปกติ vs ชำรุด vs ยังไม่ได้ตรวจ</p>
               </div>
             </div>
@@ -291,40 +290,43 @@ export default function PublicDashboard() {
           </div>
         </div>
 
-        {/* CHART 2: Bar Chart (6 Equipment Category Breakdown) */}
+        {/* CHART 2: Clean Horizontal Progress Bars (Matching User's Attached Screenshot) */}
         <div className="modern-glass-card rounded-3xl p-6 border border-white/80 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
                 <BarChart3 className="w-5 h-5" />
               </div>
-              <div>
-                <h3 className="text-base font-extrabold text-slate-900">จำนวนอุปกรณ์ที่แจ้งชำรุด (6 รายการ)</h3>
-                <p className="text-xs text-slate-500">แยกตามประเภทชิ้นส่วนอุปกรณ์</p>
-              </div>
+              <h3 className="text-base font-extrabold text-slate-900 font-prompt">
+                📊 จำนวนชำรุด 6 รายการ (Bar Chart)
+              </h3>
             </div>
-            <span className="text-xs font-bold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-xl">
-              ชำรุด {stats.damagedCount} เครื่อง
+            <span className="px-3 py-1 bg-rose-100 text-rose-800 rounded-full text-xs font-bold border border-rose-200">
+              รวม {totalDamagedItemsCount} รายการ
             </span>
           </div>
 
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={categoryBarData} margin={{ top: 20, right: 20, left: -20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748B' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#64748B' }} axisLine={false} tickLine={false} allowDecimals={false} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#0F172A', color: '#fff', borderRadius: '12px', border: 'none', fontSize: '12px' }}
-                  formatter={(val) => [`${val} รายการ`, 'จำนวนชำรุด']}
-                />
-                <Bar dataKey="count" radius={[8, 8, 0, 0]} animationDuration={1200}>
-                  {categoryBarData.map((entry, index) => (
-                    <Cell key={`bar-${index}`} fill={entry.fill} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+          {/* Clean Horizontal Rounded Progress Bar Cards */}
+          <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/80 space-y-4">
+            {categoryProgressList.map((item, idx) => {
+              const barPercent = item.count > 0 ? Math.max(Math.round((item.count / maxDamagedCount) * 100), 12) : 0;
+
+              return (
+                <div key={idx} className="space-y-1.5">
+                  <div className="flex justify-between items-center text-xs font-bold text-slate-800">
+                    <span className="font-prompt">{item.label}</span>
+                    <span className="font-mono text-slate-900">{item.count} {item.unit}</span>
+                  </div>
+
+                  <div className="w-full bg-slate-200/80 rounded-full h-3.5 p-0.5 overflow-hidden">
+                    <div 
+                      className={`h-full rounded-full transition-all duration-1000 ${item.color}`} 
+                      style={{ width: `${barPercent}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -338,7 +340,7 @@ export default function PublicDashboard() {
               <TrendingUp className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-extrabold text-slate-900">เปรียบเทียบการตรวจเช็คแยกตามระดับชั้น (ม.4 - ม.6 & ครู)</h3>
+              <h3 className="text-base font-extrabold text-slate-900 font-prompt">เปรียบเทียบการตรวจเช็คแยกตามระดับชั้น (ม.4 - ม.6 & ครู)</h3>
               <p className="text-xs text-slate-500">จำนวนเครื่องที่ตรวจแล้ว ปกติ และ ชำรุด แยกตามชั้น</p>
             </div>
           </div>
@@ -365,7 +367,7 @@ export default function PublicDashboard() {
       <div className="modern-glass rounded-3xl border border-white/80 shadow-sm overflow-hidden">
         <div className="p-5 border-b border-slate-200/60 flex items-center justify-between bg-white/60">
           <div>
-            <h3 className="text-base font-extrabold text-slate-900">
+            <h3 className="text-base font-extrabold text-slate-900 font-prompt">
               ตารางแสดงรายการอุปกรณ์ที่ชำรุด
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -408,7 +410,7 @@ export default function PublicDashboard() {
                       </span>
                     </td>
                     <td className="px-5 py-4 font-mono font-extrabold text-blue-700 text-base">{item.serial_no}</td>
-                    <td className="px-5 py-4 font-bold text-slate-900 text-base">{item.owner}</td>
+                    <td className="px-5 py-4 font-bold text-slate-900 font-prompt text-base">{item.owner}</td>
                     <td className="px-5 py-4 font-semibold text-xs text-slate-800">{item.grade_room}</td>
                     <td className="px-5 py-4 font-mono text-xs">{item.box_no}</td>
                     <td className="px-5 py-4">
