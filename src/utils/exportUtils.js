@@ -10,15 +10,16 @@ export function exportToExcel({ devices, inspections, stats, academicYear, round
     [`ปีการศึกษา: ${academicYear}`, `รอบการตรวจที่: ${round}`, `กรองห้อง: ${roomFilter || 'ทั้งหมด'}`],
     [`วันที่ส่งออกรายงาน: ${new Date().toLocaleDateString('th-TH')}`],
     [],
-    ["รายการสถิติ", "จำนวน (เครื่อง)", "คิดเป็นเปอร์เซ็นต์"],
-    ["จำนวน Tablet ทั้งหมด", stats.totalDevices, "100%"],
-    ["ตรวจเช็คเรียบร้อยแล้ว", stats.checkedCount, `${stats.progressPercent}%`],
-    ["ยังไม่ได้ตรวจเช็ค", stats.uncheckedCount, `${100 - stats.progressPercent}%`],
-    ["ใช้งานได้ปกติ", stats.normalCount, `${stats.normalPercent}%`],
-    ["ชำรุด/มีปัญหา", stats.damagedCount, `${stats.damagedPercent}%`],
+    ["รายการสถิติ", "จำนวน (หน่วย)", "คิดเป็นเปอร์เซ็นต์"],
+    ["จำนวนชุดอุปกรณ์ทั้งหมด", `${stats.totalDevices} ชุด`, "100%"],
+    ["ตรวจเช็คเรียบร้อยแล้ว", `${stats.checkedCount} ชุด`, `${stats.progressPercent}%`],
+    ["ยังไม่ได้ตรวจเช็ค", `${stats.uncheckedCount} ชุด`, `${100 - stats.progressPercent}%`],
+    ["ใช้งานได้ปกติ", `${stats.normalCount} ชุด`, `${stats.normalPercent}%`],
+    ["อุปกรณ์ชำรุด", `${stats.damagedCount} รายการ`, `${stats.damagedPercent}%`],
+    ["อุปกรณ์สูญหาย", `${stats.lostCount || 0} รายการ`, `${stats.lostPercent || 0}%`],
     [],
-    ["สรุปรายการชำรุดแยกตามหมวดหมู่"],
-    ["หมวดหมู่อุปกรณ์", "จำนวนที่ชำรุด (ชิ้น)"],
+    ["สรุปรายการชำรุด/สูญหายแยกตามหมวดหมู่"],
+    ["หมวดหมู่อุปกรณ์", "จำนวนชำรุด/สูญหาย (รายการ)"],
     ["1. Tablet", stats.damagedBreakdown.tablet],
     ["2. ปากกา S Pen", stats.damagedBreakdown.spen],
     ["3. คีย์บอร์ด", stats.damagedBreakdown.keyboard],
@@ -30,9 +31,9 @@ export function exportToExcel({ devices, inspections, stats, academicYear, round
   const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
   XLSX.utils.book_append_sheet(wb, wsSummary, "สรุปภาพรวม");
 
-  // --- Sheet 2: รายการอุปกรณ์ชำรุด (Damaged List) ---
+  // --- Sheet 2: รายการอุปกรณ์ชำรุด/สูญหาย (Damaged & Lost List) ---
   const damagedRows = [
-    ["ลำดับ", "เลข BOX", "เลข BOX KB", "Serial No.", "ชื่อ-นามสกุล", "ระดับชั้น/ห้อง", "อุปกรณ์ที่ชำรุด", "รายละเอียดอาการชำรุด", "วันที่ตรวจ"]
+    ["ลำดับ", "เลข BOX", "เลข BOX KB", "Serial No.", "ชื่อ-นามสกุล", "ระดับชั้น/ห้อง", "สถานะ", "อุปกรณ์ที่ชำรุด/สูญหาย", "รายละเอียดอาการ", "วันที่ตรวจ"]
   ];
 
   if (stats.damagedDetailsList && stats.damagedDetailsList.length > 0) {
@@ -44,72 +45,76 @@ export function exportToExcel({ devices, inspections, stats, academicYear, round
         item.serial_no,
         item.owner,
         item.grade_room,
+        item.status_label || (item.status_type === 'lost' ? 'สูญหาย' : 'ชำรุด'),
         item.item_name,
         item.note,
         item.inspected_at ? new Date(item.inspected_at).toLocaleDateString('th-TH') : '-'
       ]);
     });
-  } else {
-    damagedRows.push(["-", "-", "-", "-", "ไม่มีรายการอุปกรณ์ชำรุด", "-", "-", "-", "-"]);
   }
 
   const wsDamaged = XLSX.utils.aoa_to_sheet(damagedRows);
-  XLSX.utils.book_append_sheet(wb, wsDamaged, "รายการอุปกรณ์ชำรุด");
+  XLSX.utils.book_append_sheet(wb, wsDamaged, "อุปกรณ์พบปัญหา");
 
-  // --- Sheet 3: รายชื่อและผลการตรวจทั้งหมด (All Master Records) ---
-  const masterHeader = [
-    "ลำดับ", "ประเภท", "คำนำหน้า", "เลข BOX", "เลข BOX KB", "Serial No.", "ชื่อ", "นามสกุล", "ชั้น", "ห้อง",
-    "สถานะตรวจ", "1.Tablet", "2.S Pen", "3.คีย์บอร์ด", "4.สาย Tablet", "5.สาย KB", "6.Adapter", "หมายเหตุชำรุด"
+  // --- Sheet 3: รายการอุปกรณ์ทั้งหมด (All Devices) ---
+  const allRows = [
+    ["ลำดับ", "ประเภท", "คำนำหน้า", "ชื่อ", "นามสกุล", "ระดับชั้น", "ห้อง", "Serial No.", "เลข BOX", "เลข BOX KB", "สถานะการตรวจ", "หมายเหตุ", "ครูผู้ตรวจเช็ค", "วันที่ตรวจ"]
   ];
-  
-  const masterRows = [masterHeader];
 
   devices.forEach((dev, idx) => {
     const ins = inspections[dev.serial_no];
-    const items = ins ? ins.items : null;
-    
-    let statusText = ins ? "ตรวจแล้ว" : "ยังไม่ได้ตรวจ";
-    let tStat = items ? (items.tablet?.status === 'damaged' ? 'ชำรุด' : 'ปกติ') : '-';
-    let sStat = items ? (items.spen?.status === 'damaged' ? 'ชำรุด' : 'ปกติ') : '-';
-    let kStat = items ? (items.keyboard?.status === 'damaged' ? 'ชำรุด' : 'ปกติ') : '-';
-    let cwStat = items ? (items.cable_white?.status === 'damaged' ? 'ชำรุด' : 'ปกติ') : '-';
-    let cbStat = items ? (items.cable_black?.status === 'damaged' ? 'ชำรุด' : 'ปกติ') : '-';
-    let aStat = items ? (items.adapter?.status === 'damaged' ? 'ชำรุด' : 'ปกติ') : '-';
+    const items = ins ? (ins.items || {}) : {};
 
-    let notes = [];
-    if (items) {
-      Object.keys(items).forEach(k => {
-        if (items[k].status === 'damaged' && items[k].note) {
-          notes.push(`${getCategoryLabel(k)}: ${items[k].note}`);
+    const damagedList = [];
+    const lostList = [];
+
+    ['tablet', 'spen', 'keyboard', 'cable_white', 'cable_black', 'adapter'].forEach(cat => {
+      if (items[cat]) {
+        if (items[cat].status === 'damaged') {
+          damagedList.push(`${getCategoryLabel(cat)}${items[cat].note ? `: ${items[cat].note}` : ''}`);
+        } else if (items[cat].status === 'lost') {
+          lostList.push(`${getCategoryLabel(cat)}${items[cat].note ? `: ${items[cat].note}` : ''}`);
         }
-      });
-    }
+      }
+    });
 
-    masterRows.push([
+    const isChecked = !!ins;
+    const isDamaged = damagedList.length > 0;
+    const isLost = lostList.length > 0;
+
+    const statusLabel = !isChecked 
+      ? 'ยังไม่ได้ตรวจ' 
+      : isLost 
+      ? 'สูญหาย' 
+      : isDamaged 
+      ? 'ชำรุด' 
+      : 'ปกติ';
+
+    const issueDetails = [
+      ...lostList.map(l => `[สูญหาย] ${l}`),
+      ...damagedList.map(d => `[ชำรุด] ${d}`)
+    ].join(', ');
+
+    allRows.push([
       idx + 1,
-      dev.type === 'teacher' ? 'ครู' : 'นักเรียน',
+      dev.type === 'teacher' ? 'ครูผู้สอน' : 'นักเรียน',
       dev.prefix || 'นาย',
-      dev.box_no,
-      dev.box_kb_no,
-      dev.serial_no,
       dev.first_name,
       dev.last_name,
-      dev.grade,
-      dev.room,
-      statusText,
-      tStat, sStat, kStat, cwStat, cbStat, aStat,
-      notes.join('; ')
+      dev.type === 'teacher' ? 'ครู' : dev.grade,
+      dev.type === 'teacher' ? '-' : dev.room,
+      dev.serial_no,
+      dev.box_no,
+      dev.box_kb_no,
+      statusLabel,
+      issueDetails || '-',
+      ins ? (ins.inspector || 'ครูผู้ตรวจเช็ค') : '-',
+      ins && ins.inspected_at ? new Date(ins.inspected_at).toLocaleDateString('th-TH') : '-'
     ]);
   });
 
-  const wsMaster = XLSX.utils.aoa_to_sheet(masterRows);
-  XLSX.utils.book_append_sheet(wb, wsMaster, "ข้อมูลการตรวจทั้งหมด");
+  const wsAll = XLSX.utils.aoa_to_sheet(allRows);
+  XLSX.utils.book_append_sheet(wb, wsAll, "ข้อมูลอุปกรณ์ทั้งหมด");
 
-  // Save File
-  const fileName = `Anywhere_Tablet_Report_${academicYear}_Round${round}_${new Date().toISOString().slice(0,10)}.xlsx`;
-  XLSX.writeFile(wb, fileName);
-}
-
-export function triggerPrintReport() {
-  window.print();
+  XLSX.writeFile(wb, `รายงานการตรวจเช็ค_ปี${academicYear}_รอบที่${round}.xlsx`);
 }

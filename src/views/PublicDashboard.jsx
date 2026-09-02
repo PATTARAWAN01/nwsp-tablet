@@ -71,7 +71,7 @@ export default function PublicDashboard() {
       );
       setAnnualStats(annSt);
 
-      // 3. Grade level item-level comparison data (Unit: Pieces / ชิ้น)
+      // 3. Grade level item-level comparison data (Unit: รายการ / ชุด)
       const insMap = await inspectionService.getInspections(config.current_academic_year, config.current_round);
       
       const gradeMap = {
@@ -90,7 +90,7 @@ export default function PublicDashboard() {
             gradeMap[gKey].checked++;
             const items = ins.items || {};
             
-            // Loop through all 6 checklist items for item-level precision (หน่วย: ชิ้น)
+            // Loop through all 6 checklist items for item-level precision (หน่วย: รายการ)
             ['tablet', 'spen', 'keyboard', 'cable_white', 'cable_black', 'adapter'].forEach(cat => {
               if (items[cat]) {
                 const stVal = items[cat].status;
@@ -136,36 +136,36 @@ export default function PublicDashboard() {
     );
   }
 
-  // Data for Donut Pie Chart (Overall Status)
+  // Data for Donut Pie Chart (Overall Status) with standardized units (ชุด & รายการ)
   const donutPieData = [
-    { name: 'ใช้งานได้ปกติ', value: stats.normalCount, color: '#10B981' },
-    { name: 'พบอุปกรณ์ชำรุด', value: stats.damagedCount, color: '#EF4444' },
-    { name: 'อุปกรณ์สูญหาย', value: stats.lostCount || 0, color: '#8B5CF6' },
-    { name: 'ยังไม่ได้ตรวจเช็ค', value: stats.uncheckedCount, color: '#CBD5E1' }
+    { name: 'ใช้งานได้ปกติ (ชุด)', value: stats.normalCount, color: '#10B981', unit: 'ชุด' },
+    { name: 'พบอุปกรณ์ชำรุด (รายการ)', value: stats.damagedCount, color: '#EF4444', unit: 'รายการ' },
+    { name: 'อุปกรณ์สูญหาย (รายการ)', value: stats.lostCount || 0, color: '#8B5CF6', unit: 'รายการ' },
+    { name: 'ยังไม่ได้ตรวจเช็ค (ชุด)', value: stats.uncheckedCount, color: '#CBD5E1', unit: 'ชุด' }
   ];
 
   // Data for 6 Category Breakdown Progress Bars
   const totalDamagedItemsCount = Object.values(stats.damagedBreakdown).reduce((a, b) => a + b, 0);
 
   const categoryProgressList = [
-    { label: 'Tablet', count: stats.damagedBreakdown.tablet, unit: 'เครื่อง', color: 'bg-blue-600' },
-    { label: 'ปากกา S Pen', count: stats.damagedBreakdown.spen, unit: 'ด้าม', color: 'bg-purple-600' },
-    { label: 'คีย์บอร์ด', count: stats.damagedBreakdown.keyboard, unit: 'ชิ้น', color: 'bg-indigo-600' },
-    { label: 'สาย Tablet (ขาว)', count: stats.damagedBreakdown.cable_white, unit: 'เส้น', color: 'bg-amber-500' },
-    { label: 'สาย KB (ดำ)', count: stats.damagedBreakdown.cable_black, unit: 'เส้น', color: 'bg-slate-700' },
-    { label: 'Adapter', count: stats.damagedBreakdown.adapter, unit: 'หัว', color: 'bg-emerald-600' }
+    { label: 'Tablet', count: stats.damagedBreakdown.tablet, unit: 'รายการ', color: 'bg-blue-600' },
+    { label: 'ปากกา S Pen', count: stats.damagedBreakdown.spen, unit: 'รายการ', color: 'bg-purple-600' },
+    { label: 'คีย์บอร์ด', count: stats.damagedBreakdown.keyboard, unit: 'รายการ', color: 'bg-indigo-600' },
+    { label: 'สาย Tablet (ขาว)', count: stats.damagedBreakdown.cable_white, unit: 'รายการ', color: 'bg-amber-500' },
+    { label: 'สาย KB (ดำ)', count: stats.damagedBreakdown.cable_black, unit: 'รายการ', color: 'bg-slate-700' },
+    { label: 'Adapter', count: stats.damagedBreakdown.adapter, unit: 'รายการ', color: 'bg-emerald-600' }
   ];
 
   const maxDamagedCount = Math.max(...categoryProgressList.map(c => c.count), 1);
 
   // Annual Damaged Breakdown List across all 5 rounds
   const annualCategoryProgressList = annualStats ? [
-    { label: 'Tablet', count: annualStats.annualDamagedBreakdown.tablet, unit: 'เครื่อง', color: 'bg-blue-600' },
-    { label: 'ปากกา S Pen', count: annualStats.annualDamagedBreakdown.spen, unit: 'ด้าม', color: 'bg-purple-600' },
-    { label: 'คีย์บอร์ด', count: annualStats.annualDamagedBreakdown.keyboard, unit: 'ชิ้น', color: 'bg-indigo-600' },
-    { label: 'สาย Tablet (ขาว)', count: annualStats.annualDamagedBreakdown.cable_white, unit: 'เส้น', color: 'bg-amber-500' },
-    { label: 'สาย KB (ดำ)', count: annualStats.annualDamagedBreakdown.cable_black, unit: 'เส้น', color: 'bg-slate-700' },
-    { label: 'Adapter', count: annualStats.annualDamagedBreakdown.adapter, unit: 'หัว', color: 'bg-emerald-600' }
+    { label: 'Tablet', count: annualStats.annualDamagedBreakdown.tablet, unit: 'รายการ', color: 'bg-blue-600' },
+    { label: 'ปากกา S Pen', count: annualStats.annualDamagedBreakdown.spen, unit: 'รายการ', color: 'bg-purple-600' },
+    { label: 'คีย์บอร์ด', count: annualStats.annualDamagedBreakdown.keyboard, unit: 'รายการ', color: 'bg-indigo-600' },
+    { label: 'สาย Tablet (ขาว)', count: annualStats.annualDamagedBreakdown.cable_white, unit: 'รายการ', color: 'bg-amber-500' },
+    { label: 'สาย KB (ดำ)', count: annualStats.annualDamagedBreakdown.cable_black, unit: 'รายการ', color: 'bg-slate-700' },
+    { label: 'Adapter', count: annualStats.annualDamagedBreakdown.adapter, unit: 'รายการ', color: 'bg-emerald-600' }
   ] : [];
 
   const maxAnnualDamagedCount = Math.max(...annualCategoryProgressList.map(c => c.count), 1);
@@ -183,20 +183,16 @@ export default function PublicDashboard() {
 
           <div className="space-y-1 text-[11px]">
             <div className="flex justify-between font-bold text-rose-400">
-              <span>ชิ้นอุปกรณ์ชำรุด:</span>
-              <span className="font-mono text-xs">{data.damagedItems} ชิ้น</span>
+              <span>อุปกรณ์ชำรุด:</span>
+              <span className="font-mono text-xs">{data.damagedItems} รายการ</span>
             </div>
             <div className="flex justify-between font-bold text-purple-400">
-              <span>ชิ้นอุปกรณ์สูญหาย:</span>
-              <span className="font-mono text-xs">{data.lostItems} ชิ้น</span>
+              <span>อุปกรณ์สูญหาย:</span>
+              <span className="font-mono text-xs">{data.lostItems} รายการ</span>
             </div>
             <div className="flex justify-between font-bold text-emerald-400 pt-1 border-t border-slate-700">
-              <span>ชิ้นอุปกรณ์ปกติ:</span>
-              <span className="font-mono text-xs">{data.normalItems} ชิ้น</span>
-            </div>
-            <div className="flex justify-between font-extrabold text-blue-300 pt-1 border-t border-slate-700">
-              <span>รวมชิ้นอุปกรณ์ที่ตรวจแล้ว:</span>
-              <span className="font-mono text-xs">{data.totalItemsInspected} ชิ้น</span>
+              <span>อุปกรณ์ปกติ:</span>
+              <span className="font-mono text-xs">{data.checked - Math.ceil((data.damagedItems + data.lostItems)/6)} ชุด</span>
             </div>
           </div>
         </div>
@@ -376,7 +372,7 @@ export default function PublicDashboard() {
                     </Pie>
                     <Tooltip 
                       contentStyle={{ backgroundColor: '#0F172A', color: '#fff', borderRadius: '12px', border: 'none', fontSize: '12px' }}
-                      formatter={(value, name) => [`${value} ชุด`, name]}
+                      formatter={(value, name, props) => [`${value} ${props.payload.unit || 'ชุด'}`, name]}
                     />
                     <Legend verticalAlign="bottom" height={36} iconType="circle" />
                   </PieChart>
@@ -444,7 +440,7 @@ export default function PublicDashboard() {
                     จำนวนชิ้นอุปกรณ์ที่พบปัญหาแยกตามระดับชั้น (ม.4 - ม.6 & ครู)
                   </h3>
                   <p className="text-xs text-slate-500">
-                    แสดงจำนวนชิ้นอุปกรณ์ที่พบปัญหา <span className="font-bold text-rose-600">ชำรุด</span> และ <span className="font-bold text-purple-600">สูญหาย</span> (หน่วย: ชิ้น • คิดจากอุปกรณ์ 6 รายการต่อชุด)
+                    แสดงจำนวนชิ้นอุปกรณ์ที่พบปัญหา <span className="font-bold text-rose-600">ชำรุด</span> และ <span className="font-bold text-purple-600">สูญหาย</span> (หน่วย: รายการ)
                   </p>
                 </div>
               </div>
@@ -463,7 +459,7 @@ export default function PublicDashboard() {
               </div>
             </div>
 
-            {/* Precision Item-Level Recharts Bar Chart (Unit: Pieces / ชิ้น) */}
+            {/* Precision Item-Level Recharts Bar Chart (Unit: รายการ) */}
             <div className="h-72 sm:h-80 pt-2">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart 
@@ -510,14 +506,14 @@ export default function PublicDashboard() {
                   
                   <Bar 
                     dataKey="damagedItems" 
-                    name="อุปกรณ์ชำรุด (หน่วย: ชิ้น)" 
+                    name="อุปกรณ์ชำรุด (หน่วย: รายการ)" 
                     fill="url(#barRedItem)" 
                     radius={[8, 8, 0, 0]} 
                     animationDuration={1000}
                   />
                   <Bar 
                     dataKey="lostItems" 
-                    name="อุปกรณ์สูญหาย (หน่วย: ชิ้น)" 
+                    name="อุปกรณ์สูญหาย (หน่วย: รายการ)" 
                     fill="url(#barPurpleItem)" 
                     radius={[8, 8, 0, 0]} 
                     animationDuration={1000}
@@ -561,7 +557,7 @@ export default function PublicDashboard() {
                   {stats.damagedDetailsList.length === 0 ? (
                     <tr>
                       <td colSpan="8" className="p-8 text-center text-slate-400 font-medium">
-                        🎉 ไม่พบอุปกรณ์ชำรุดหรือสูญหายในรอบการตรวจนี้ (อุปกรณ์ทุกเครื่องสมบูรณ์ 100%)
+                        🎉 ไม่พบอุปกรณ์ชำรุดหรือสูญหายในรอบการตรวจนี้ (อุปกรณ์ทุกชุดสมบูรณ์ 100%)
                       </td>
                     </tr>
                   ) : (
@@ -638,7 +634,7 @@ export default function PublicDashboard() {
                   <h3 className="text-base font-extrabold text-slate-900 font-prompt">
                     📈 กราฟแนวโน้มผลการตรวจเช็คตลอดปีการศึกษา (รอบที่ 1 ถึง รอบที่ 5)
                   </h3>
-                  <p className="text-xs text-slate-500">เปรียบเทียบจำนวนเครื่องที่ตรวจแล้ว ปกติ ชำรุด และ สูญหาย ในแต่ละรอบ</p>
+                  <p className="text-xs text-slate-500">เปรียบเทียบจำนวนชุดที่ตรวจแล้ว ปกติ (ชุด) ชำรุด (รายการ) และ สูญหาย (รายการ) ในแต่ละรอบ</p>
                 </div>
               </div>
             </div>
@@ -655,8 +651,8 @@ export default function PublicDashboard() {
                   <Legend verticalAlign="top" height={36} iconType="circle" />
                   <Line type="monotone" dataKey="checkedCount" name="ตรวจเช็คแล้ว (ชุด)" stroke="#3B82F6" strokeWidth={3} dot={{ r: 5 }} activeDot={{ r: 7 }} />
                   <Line type="monotone" dataKey="normalCount" name="ปกติ (ชุด)" stroke="#10B981" strokeWidth={3} dot={{ r: 5 }} activeDot={{ r: 7 }} />
-                  <Line type="monotone" dataKey="damagedCount" name="ชำรุด (ชุด)" stroke="#EF4444" strokeWidth={3} dot={{ r: 5 }} activeDot={{ r: 7 }} />
-                  <Line type="monotone" dataKey="lostCount" name="สูญหาย (ชุด)" stroke="#8B5CF6" strokeWidth={3} dot={{ r: 5 }} activeDot={{ r: 7 }} />
+                  <Line type="monotone" dataKey="damagedCount" name="ชำรุด (รายการ)" stroke="#EF4444" strokeWidth={3} dot={{ r: 5 }} activeDot={{ r: 7 }} />
+                  <Line type="monotone" dataKey="lostCount" name="สูญหาย (รายการ)" stroke="#8B5CF6" strokeWidth={3} dot={{ r: 5 }} activeDot={{ r: 7 }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -691,8 +687,8 @@ export default function PublicDashboard() {
                         </td>
                         <td className="p-3 font-mono font-bold text-blue-900">{rd.checkedCount} ชุด</td>
                         <td className="p-3 font-mono font-bold text-emerald-700">{rd.normalCount} ชุด</td>
-                        <td className="p-3 font-mono font-bold text-rose-700">{rd.damagedCount} ชุด</td>
-                        <td className="p-3 font-mono font-bold text-purple-700">{rd.lostCount || 0} ชุด</td>
+                        <td className="p-3 font-mono font-bold text-rose-700">{rd.damagedCount} รายการ</td>
+                        <td className="p-3 font-mono font-bold text-purple-700">{rd.lostCount || 0} รายการ</td>
                         <td className="p-3 text-right font-mono font-extrabold text-slate-900">{rd.progressPercent}%</td>
                       </tr>
                     ))}

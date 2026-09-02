@@ -367,7 +367,7 @@ export default function TeacherInspection() {
             
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <span className="px-4 py-2 bg-blue-900 text-white font-extrabold font-prompt rounded-2xl text-sm shadow-xs">
-                {roomKey} (ตรวจครบแล้ว {fullyCheckedCount}/{devices.length} เครื่อง)
+                {roomKey} (ตรวจครบแล้ว {fullyCheckedCount}/{devices.length} ชุด)
               </span>
 
               <span className="px-3.5 py-1.5 bg-amber-100 text-amber-950 font-extrabold rounded-xl text-xs border border-amber-300">
@@ -392,7 +392,7 @@ export default function TeacherInspection() {
               className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-2xl text-xs sm:text-sm transition-all shadow-md shadow-blue-600/30 flex items-center space-x-2"
             >
               <Save className="w-4 h-4 text-amber-300" />
-              <span>{loading ? 'กำลังบันทึก...' : `บันทึกข้อมูลการตรวจ (${fullyCheckedCount} เครื่อง)`}</span>
+              <span>{loading ? 'กำลังบันทึก...' : `บันทึกข้อมูลการตรวจ (${fullyCheckedCount} ชุด)`}</span>
             </button>
 
           </div>
@@ -601,7 +601,7 @@ export default function TeacherInspection() {
               className="px-6 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold rounded-2xl text-xs sm:text-sm transition-all shadow-lg shadow-amber-400/30 flex items-center space-x-2"
             >
               <Save className="w-4 h-4" />
-              <span>{loading ? 'กำลังบันทึก...' : `บันทึกข้อมูลการตรวจ (${fullyCheckedCount} เครื่อง)`}</span>
+              <span>{loading ? 'กำลังบันทึก...' : `บันทึกข้อมูลการตรวจ (${fullyCheckedCount} ชุด)`}</span>
             </button>
           </div>
 

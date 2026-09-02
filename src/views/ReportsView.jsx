@@ -320,28 +320,28 @@ export default function ReportsView() {
           </p>
         </div>
 
-        {/* Top KPI Cards Summary */}
+        {/* Top KPI Cards Summary with Explicit Standardized Units (ชุด vs รายการ) */}
         {stats && (
-          <div className="grid grid-cols-5 gap-2.5 mb-5 text-center text-xs">
+          <div className="grid grid-cols-5 gap-2.5 mb-5 text-center text-xs font-sarabun">
             <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200">
               <span className="text-slate-500 font-bold block">อุปกรณ์ทั้งหมด</span>
-              <p className="text-base sm:text-lg font-extrabold text-slate-900 mt-0.5">{stats.totalDevices} เครื่อง</p>
+              <p className="text-base sm:text-lg font-extrabold text-slate-900 mt-0.5">{stats.totalDevices} ชุด</p>
             </div>
             <div className="p-3 bg-blue-50/70 rounded-2xl border border-blue-200">
               <span className="text-blue-700 font-bold block">ตรวจเช็คแล้ว</span>
-              <p className="text-base sm:text-lg font-extrabold text-blue-800 mt-0.5">{stats.checkedCount} เครื่อง ({stats.progressPercent}%)</p>
+              <p className="text-base sm:text-lg font-extrabold text-blue-800 mt-0.5">{stats.checkedCount} ชุด ({stats.progressPercent}%)</p>
             </div>
             <div className="p-3 bg-emerald-50/70 rounded-2xl border border-emerald-200">
               <span className="text-emerald-700 font-bold block">ปกติ</span>
-              <p className="text-base sm:text-lg font-extrabold text-emerald-700 mt-0.5">{stats.normalCount} เครื่อง</p>
+              <p className="text-base sm:text-lg font-extrabold text-emerald-700 mt-0.5">{stats.normalCount} ชุด</p>
             </div>
             <div className="p-3 bg-rose-50/70 rounded-2xl border border-rose-200">
               <span className="text-rose-700 font-bold block">ชำรุด</span>
-              <p className="text-base sm:text-lg font-extrabold text-rose-700 mt-0.5">{stats.damagedCount} เครื่อง</p>
+              <p className="text-base sm:text-lg font-extrabold text-rose-700 mt-0.5">{stats.damagedCount} รายการ</p>
             </div>
             <div className="p-3 bg-purple-50/70 rounded-2xl border border-purple-200">
               <span className="text-purple-700 font-bold block">สูญหาย</span>
-              <p className="text-base sm:text-lg font-extrabold text-purple-700 mt-0.5">{stats.lostCount || 0} เครื่อง</p>
+              <p className="text-base sm:text-lg font-extrabold text-purple-700 mt-0.5">{stats.lostCount || 0} รายการ</p>
             </div>
           </div>
         )}

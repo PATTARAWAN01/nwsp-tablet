@@ -1101,7 +1101,7 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
                     <th className="p-3 text-slate-900 font-extrabold">ชื่อ-นามสกุล ผู้ทำรายการ</th>
                     <th className="p-3">การทำรายการ</th>
                     <th className="p-3">รายละเอียดเพิ่มเติม</th>
-                    <th className="p-3 text-center">จำนวนเครื่อง</th>
+                    <th className="p-3 text-center">จำนวนชุด</th>
                     <th className="p-3 text-right">ลบประวัติ</th>
                   </tr>
                 </thead>
@@ -1132,7 +1132,7 @@ teacher,นาย,R52T200001X,สมชาย,วิชาการ,ครู,-,
                         <td className="p-3 font-bold text-slate-800 whitespace-nowrap">{log.action}</td>
                         <td className="p-3 text-slate-600 font-medium">{log.details || '-'}</td>
                         <td className="p-3 text-center font-mono font-extrabold text-slate-900 whitespace-nowrap">
-                          {log.device_count > 0 ? `${log.device_count} เครื่อง` : '-'}
+                          {log.device_count > 0 ? `${log.device_count} ชุด` : '-'}
                         </td>
                         <td className="p-3 text-right whitespace-nowrap">
                           <button
