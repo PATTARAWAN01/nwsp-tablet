@@ -433,12 +433,12 @@ export default function PublicDashboard() {
               <div className="py-2 space-y-4">
                 <div className="flex items-center justify-between text-xs font-bold text-slate-700">
                   <span>ตรวจเช็คแล้ว <strong>{stats.checkedCount}</strong> จาก <strong>{stats.totalDevices}</strong> ชุด</span>
-                  <span className="text-blue-600 font-mono font-extrabold">{stats.progressPercent}%</span>
+                  <span className="text-amber-600 font-mono font-extrabold">{stats.progressPercent}%</span>
                 </div>
 
                 <div className="w-full bg-slate-100 rounded-full h-4 p-0.5 overflow-hidden border border-slate-200 shadow-inner">
                   <div 
-                    className="h-full bg-gradient-to-r from-blue-600 via-indigo-600 to-amber-500 rounded-full transition-all duration-1000 shadow-sm"
+                    className="h-full bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 rounded-full transition-all duration-1000 shadow-amber-400/30 shadow-sm"
                     style={{ width: `${stats.progressPercent}%` }}
                   />
                 </div>
