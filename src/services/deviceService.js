@@ -40,6 +40,35 @@ const setLocalData = (key, data) => {
   localStorage.setItem(key, JSON.stringify(data));
 };
 
+// Helper: Standardized Grade & Room Grouping Sorter
+export const sortDevicesByGradeAndRoom = (devicesList) => {
+  if (!Array.isArray(devicesList)) return [];
+
+  const gradeOrder = { 'ม.4': 1, 'ม.5': 2, 'ม.6': 3, 'ครู': 4 };
+
+  return [...devicesList].sort((a, b) => {
+    // 1. Sort by type (students first, teachers last)
+    const typeA = a.type === 'teacher' ? 2 : 1;
+    const typeB = b.type === 'teacher' ? 2 : 1;
+    if (typeA !== typeB) return typeA - typeB;
+
+    // 2. Sort by grade (ม.4 -> ม.5 -> ม.6)
+    const gA = gradeOrder[a.grade] || 99;
+    const gB = gradeOrder[b.grade] || 99;
+    if (gA !== gB) return gA - gB;
+
+    // 3. Sort by room (1 -> 2 -> 3 -> 4)
+    const rA = parseInt(a.room, 10) || 0;
+    const rB = parseInt(b.room, 10) || 0;
+    if (rA !== rB) return rA - rB;
+
+    // 4. Sort within room by student first_name & last_name (Thai locale)
+    const nameA = `${a.first_name || ''} ${a.last_name || ''}`;
+    const nameB = `${b.first_name || ''} ${b.last_name || ''}`;
+    return nameA.localeCompare(nameB, 'th');
+  });
+};
+
 export const deviceService = {
   
   // Initialize sample data into Firestore/LocalStorage on first run
@@ -81,12 +110,13 @@ export const deviceService = {
           const devSnap = await getDocs(collection(db, "devices"));
           if (devSnap.empty) {
             const samples = generateSampleDevices();
+            const sortedSamples = sortDevicesByGradeAndRoom(samples);
             const batch = writeBatch(db);
-            samples.forEach(d => {
+            sortedSamples.forEach(d => {
               batch.set(doc(db, "devices", d.id), d);
             });
             await batch.commit();
-            setLocalData(DEVICES_KEY, samples);
+            setLocalData(DEVICES_KEY, sortedSamples);
           }
           await setDoc(sysDocRef, { initialized: true, cleared: false });
           setLocalData(SYSTEM_KEY, { initialized: true, cleared: false });
@@ -98,7 +128,7 @@ export const deviceService = {
           const devSnap = await getDocs(collection(db, "devices"));
           const mapList = [];
           devSnap.forEach(d => mapList.push(d.data()));
-          setLocalData(DEVICES_KEY, mapList);
+          setLocalData(DEVICES_KEY, sortDevicesByGradeAndRoom(mapList));
         }
 
       } catch (e) {
@@ -109,7 +139,8 @@ export const deviceService = {
       const localSys = getLocalData(SYSTEM_KEY, null);
       if (!localSys) {
         const samples = generateSampleDevices();
-        setLocalData(DEVICES_KEY, samples);
+        const sortedSamples = sortDevicesByGradeAndRoom(samples);
+        setLocalData(DEVICES_KEY, sortedSamples);
         setLocalData(CONFIG_KEY, {
           academic_years: ["2569"],
           current_academic_year: INITIAL_ACADEMIC_YEAR,
@@ -182,7 +213,8 @@ export const deviceService = {
 
   getAllDevices: async () => {
     await deviceService.initDataIfEmpty();
-    return getLocalData(DEVICES_KEY, []);
+    const raw = getLocalData(DEVICES_KEY, []);
+    return sortDevicesByGradeAndRoom(raw);
   },
 
   getDevices: async ({ academicYear, grade, room, search }) => {
@@ -213,7 +245,23 @@ export const deviceService = {
       );
     }
 
-    return devices;
+    return sortDevicesByGradeAndRoom(devices);
+  },
+
+  sortAndSaveAllDevicesByRoom: async () => {
+    let devices = getLocalData(DEVICES_KEY, []);
+    const sorted = sortDevicesByGradeAndRoom(devices);
+    setLocalData(DEVICES_KEY, sorted);
+
+    if (isFirebaseActive && db) {
+      const batch = writeBatch(db);
+      sorted.forEach(dev => {
+        batch.set(doc(db, "devices", dev.id), dev);
+      });
+      await batch.commit();
+    }
+
+    return sorted;
   },
 
   addDevice: async (deviceData) => {
@@ -238,7 +286,8 @@ export const deviceService = {
     }
 
     devices.push(newDevice);
-    setLocalData(DEVICES_KEY, devices);
+    const sorted = sortDevicesByGradeAndRoom(devices);
+    setLocalData(DEVICES_KEY, sorted);
     setLocalData(SYSTEM_KEY, { initialized: true, cleared: false });
     return newDevice;
   },
@@ -259,7 +308,8 @@ export const deviceService = {
     }
 
     devices[idx] = updatedDev;
-    setLocalData(DEVICES_KEY, devices);
+    const sorted = sortDevicesByGradeAndRoom(devices);
+    setLocalData(DEVICES_KEY, sorted);
     return updatedDev;
   },
 
@@ -269,7 +319,8 @@ export const deviceService = {
     }
     let devices = getLocalData(DEVICES_KEY, []);
     devices = devices.filter(d => d.id !== id);
-    setLocalData(DEVICES_KEY, devices);
+    const sorted = sortDevicesByGradeAndRoom(devices);
+    setLocalData(DEVICES_KEY, sorted);
     return true;
   },
 
@@ -326,8 +377,9 @@ export const deviceService = {
       await batch.commit();
     }
 
-    setLocalData(DEVICES_KEY, devices);
-    return devices;
+    const sorted = sortDevicesByGradeAndRoom(devices);
+    setLocalData(DEVICES_KEY, sorted);
+    return sorted;
   },
 
   // Bulk Add / Upsert via CSV Import
@@ -401,10 +453,11 @@ export const deviceService = {
       await setDoc(doc(db, "settings", "system"), { initialized: true, cleared: false });
     }
 
-    setLocalData(DEVICES_KEY, devices);
+    const sorted = sortDevicesByGradeAndRoom(devices);
+    setLocalData(DEVICES_KEY, sorted);
     setLocalData(SYSTEM_KEY, { initialized: true, cleared: false });
 
-    return { addedCount, updatedCount, totalCount: devices.length };
+    return { addedCount, updatedCount, totalCount: sorted.length };
   },
 
   // Clear all sample devices and inspections for system reset

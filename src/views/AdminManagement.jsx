@@ -500,6 +500,27 @@ export default function AdminManagement() {
     }
   };
 
+  const handleSortAllByRoom = async () => {
+    setLoading(true);
+    try {
+      await deviceService.sortAndSaveAllDevicesByRoom();
+      await loadAdminData();
+      setModalPopup({
+        type: 'success',
+        title: 'จัดเรียงกลุ่มห้องสำเร็จ! 🎉',
+        message: 'เรียงลำดับข้อมูลอุปกรณ์ตามห้องอยู่ติดกันเรียบร้อยแล้ว (ม.4/1 ถึง ครูผู้สอน)'
+      });
+    } catch (err) {
+      setModalPopup({
+        type: 'error',
+        title: 'เกิดข้อผิดพลาด!',
+        message: err.message
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Filter Devices
   const filteredDevices = devices.filter(dev => {
     if (filterGrade !== "ทั้งหมด") {
@@ -741,6 +762,15 @@ export default function AdminManagement() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+              <button
+                onClick={handleSortAllByRoom}
+                className="px-3.5 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 font-extrabold rounded-2xl text-xs transition-colors flex items-center space-x-1.5"
+                title="จัดเรียงข้อมูลให้อยู่ติดกันตามห้อง (ม.4/1 -> ม.4/2 ... -> ครู)"
+              >
+                <FolderSync className="w-4 h-4 text-amber-700" />
+                <span>เรียงกลุ่มห้องอยู่ติดกัน</span>
+              </button>
+
               <button
                 onClick={() => {
                   setSelectedMoveDevIds([]);
