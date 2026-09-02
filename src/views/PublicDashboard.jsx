@@ -146,12 +146,20 @@ export default function PublicDashboard() {
     );
   }
 
-  // Data for Donut Pie Chart (Overall Status) with standardized units (ชุด & รายการ)
+  // Pure Item-Level Precision Donut Data (Base Universe: Total Sets * 6 items)
+  const totalItemsUniverse = stats.totalDevices * 6;
+  const checkedItemsUniverse = stats.checkedCount * 6;
+  const uncheckedItemsUniverse = stats.uncheckedCount * 6;
+
+  const damagedItemsCount = (stats.damagedDetailsList || []).filter(d => d.status_type === 'damaged').length;
+  const lostItemsCount = (stats.damagedDetailsList || []).filter(d => d.status_type === 'lost').length;
+  const normalItemsCount = Math.max(checkedItemsUniverse - (damagedItemsCount + lostItemsCount), 0);
+
   const donutPieData = [
-    { name: 'ใช้งานได้ปกติ (ชุด)', value: stats.normalCount, color: '#10B981', unit: 'ชุด' },
-    { name: 'พบอุปกรณ์ชำรุด (รายการ)', value: stats.damagedCount, color: '#EF4444', unit: 'รายการ' },
-    { name: 'อุปกรณ์สูญหาย (รายการ)', value: stats.lostCount || 0, color: '#8B5CF6', unit: 'รายการ' },
-    { name: 'ยังไม่ได้ตรวจเช็ค (ชุด)', value: stats.uncheckedCount, color: '#CBD5E1', unit: 'ชุด' }
+    { name: 'ชิ้นอุปกรณ์ปกติ', value: normalItemsCount, color: '#10B981', unit: 'รายการ' },
+    { name: 'ชิ้นอุปกรณ์ชำรุด', value: damagedItemsCount, color: '#EF4444', unit: 'รายการ' },
+    { name: 'ชิ้นอุปกรณ์สูญหาย', value: lostItemsCount, color: '#8B5CF6', unit: 'รายการ' },
+    { name: 'ยังไม่ได้ตรวจเช็ค', value: uncheckedItemsUniverse, color: '#CBD5E1', unit: 'รายการ' }
   ];
 
   // Data for 6 Category Breakdown Progress Bars
@@ -245,7 +253,7 @@ export default function PublicDashboard() {
             </div>
             <div className="flex justify-between font-bold text-emerald-400 pt-1 border-t border-slate-700">
               <span>อุปกรณ์ปกติ:</span>
-              <span className="font-mono text-xs">{data.checked - Math.ceil((data.damagedItems + data.lostItems)/6)} ชุด</span>
+              <span className="font-mono text-xs">{data.normalItems} รายการ</span>
             </div>
           </div>
         </div>
@@ -389,7 +397,7 @@ export default function PublicDashboard() {
           {/* Interactive Charts Row 1: Donut Pie Chart & Category Bars */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
-            {/* CHART 1: Donut Pie Chart */}
+            {/* CHART 1: Donut Pie Chart (100% Mathematically Pure Item Universe) */}
             <div className="modern-glass-card rounded-3xl p-6 border border-white/80 shadow-sm space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
@@ -397,12 +405,12 @@ export default function PublicDashboard() {
                     <PieIcon className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-base font-extrabold text-slate-900 font-prompt">สัดส่วนสถานะอุปกรณ์ทั้งหมด</h3>
-                    <p className="text-xs text-slate-500">ปกติ vs ชำรุด vs สูญหาย vs ยังไม่ได้ตรวจ (รอบที่ {config.current_round})</p>
+                    <h3 className="text-base font-extrabold text-slate-900 font-prompt">สัดส่วนสถานะชิ้นอุปกรณ์ทั้งหมด</h3>
+                    <p className="text-xs text-slate-500">คิดจาก 6 รายการอุปกรณ์ต่อชุด (รอบที่ {config.current_round})</p>
                   </div>
                 </div>
                 <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-xl">
-                  รวม {stats.totalDevices} ชุด
+                  รวม {totalItemsUniverse} รายการ
                 </span>
               </div>
 
@@ -425,15 +433,15 @@ export default function PublicDashboard() {
                     </Pie>
                     <Tooltip 
                       contentStyle={{ backgroundColor: '#0F172A', color: '#fff', borderRadius: '12px', border: 'none', fontSize: '12px' }}
-                      formatter={(value, name, props) => [`${value} ${props.payload.unit || 'ชุด'}`, name]}
+                      formatter={(value, name) => [`${value} รายการ`, name]}
                     />
                     <Legend verticalAlign="bottom" height={36} iconType="circle" />
                   </PieChart>
                 </ResponsiveContainer>
 
-                <div className="absolute flex flex-col items-center justify-center pointer-events-none mb-6">
-                  <span className="text-2xl font-extrabold text-slate-900 font-mono">{stats.checkedCount}</span>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase">ตรวจเช็คแล้ว (ชุด)</span>
+                <div className="absolute flex flex-col items-center justify-center pointer-events-none mb-6 text-center">
+                  <span className="text-xl font-extrabold text-slate-900 font-mono">{checkedItemsUniverse} / {totalItemsUniverse}</span>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase">รายการอุปกรณ์ที่ตรวจแล้ว</span>
                 </div>
               </div>
             </div>
