@@ -123,6 +123,63 @@ export const deviceService = {
     }
   },
 
+  getConfig: async () => {
+    await deviceService.initDataIfEmpty();
+    if (isFirebaseActive && db) {
+      try {
+        const configDoc = await getDoc(doc(db, "settings", "config"));
+        if (configDoc.exists()) {
+          const cfg = configDoc.data();
+          setLocalData(CONFIG_KEY, cfg);
+          return cfg;
+        }
+      } catch (e) {
+        console.error("getConfig error:", e);
+      }
+    }
+    return getLocalData(CONFIG_KEY, {
+      academic_years: ["2569"],
+      current_academic_year: INITIAL_ACADEMIC_YEAR,
+      current_round: INITIAL_INSPECTION_ROUND,
+      admin_password: "nwsp1234",
+      report_signatures: DEFAULT_REPORT_SIGNATURES
+    });
+  },
+
+  updateConfig: async (newConfig) => {
+    if (isFirebaseActive && db) {
+      try {
+        await setDoc(doc(db, "settings", "config"), newConfig, { merge: true });
+      } catch (e) {
+        console.error("updateConfig error:", e);
+      }
+    }
+    const current = getLocalData(CONFIG_KEY, {});
+    const updated = { ...current, ...newConfig };
+    setLocalData(CONFIG_KEY, updated);
+    return updated;
+  },
+
+  verifyRoomPin: async (roomKey, pin) => {
+    await deviceService.initDataIfEmpty();
+    let pins = DEFAULT_ROOM_PINS;
+    if (isFirebaseActive && db) {
+      try {
+        const pinsDoc = await getDoc(doc(db, "settings", "pins"));
+        if (pinsDoc.exists()) {
+          pins = pinsDoc.data();
+          setLocalData(PINS_KEY, pins);
+        }
+      } catch (e) {
+        console.error("verifyRoomPin error:", e);
+      }
+    } else {
+      pins = getLocalData(PINS_KEY, DEFAULT_ROOM_PINS);
+    }
+    const expectedPin = pins[roomKey] || '1234';
+    return String(pin).trim() === String(expectedPin).trim();
+  },
+
   getAllDevices: async () => {
     await deviceService.initDataIfEmpty();
     return getLocalData(DEVICES_KEY, []);
