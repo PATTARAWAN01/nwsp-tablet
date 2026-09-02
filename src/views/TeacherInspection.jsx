@@ -435,11 +435,11 @@ export default function TeacherInspection() {
                             <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold ${
                               dev.type === 'teacher' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
                             }`}>
-                              1. {dev.type === 'teacher' ? 'ครูผู้สอน' : 'นักเรียน'}
+                              {dev.type === 'teacher' ? 'ครูผู้สอน' : 'นักเรียน'}
                             </span>
 
                             <div className="flex items-center space-x-1.5 bg-blue-50 px-3 py-0.5 rounded-xl border border-blue-200">
-                              <span className="text-[11px] text-blue-800 font-bold">2. Serial No:</span>
+                              <span className="text-[11px] text-blue-800 font-bold">Serial No:</span>
                               <span className="font-mono font-extrabold text-blue-900 text-base sm:text-lg tracking-wide">
                                 {dev.serial_no}
                               </span>
@@ -462,15 +462,15 @@ export default function TeacherInspection() {
                           </div>
 
                           <h3 className="font-extrabold text-slate-900 text-xl font-prompt pt-0.5">
-                            3. {dev.prefix || ''} {dev.first_name} {dev.last_name}
+                            {dev.prefix || ''} {dev.first_name} {dev.last_name}
                           </h3>
 
                           <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 font-semibold">
-                            <span>4. ชั้น: <strong className="text-slate-900 font-extrabold">{dev.type === 'teacher' ? 'ครู' : `${dev.grade}/${dev.room}`}</strong></span>
+                            <span>ชั้น: <strong className="text-slate-900 font-extrabold">{dev.type === 'teacher' ? 'ครู' : `${dev.grade}/${dev.room}`}</strong></span>
                             <span>•</span>
-                            <span>5. เลข BOX: <strong className="text-slate-900 font-mono font-extrabold">{dev.box_no}</strong></span>
+                            <span>เลข BOX: <strong className="text-slate-900 font-mono font-extrabold">{dev.box_no}</strong></span>
                             <span>•</span>
-                            <span>6. เลข BOX KB: <strong className="text-slate-900 font-mono font-extrabold">{dev.box_kb_no}</strong></span>
+                            <span>เลข BOX KB: <strong className="text-slate-900 font-mono font-extrabold">{dev.box_kb_no}</strong></span>
                           </div>
                         </div>
                       </div>
@@ -480,7 +480,7 @@ export default function TeacherInspection() {
                         className={`self-start md:self-center px-4 py-2 rounded-2xl text-xs font-extrabold transition-all flex items-center space-x-1.5 border ${
                           isAllNormal
                             ? 'bg-emerald-600 text-white border-emerald-600 shadow-md ring-2 ring-emerald-300'
-                            : 'bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-800 border-emerald-300 shadow-xs'
+                            : 'bg-emerald-50/50 hover:bg-emerald-600 hover:text-white text-emerald-700/70 border-emerald-200/70'
                         }`}
                       >
                         <CheckCircle2 className="w-4 h-4" />
@@ -514,7 +514,7 @@ export default function TeacherInspection() {
                                 ? 'bg-rose-100/90 border-rose-300 shadow-xs' 
                                 : isNormal 
                                 ? 'bg-emerald-50 border-emerald-300' 
-                                : 'bg-slate-50/90 border-slate-200/90'
+                                : 'bg-slate-50/60 border-slate-200/80'
                             }`}
                           >
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
@@ -531,10 +531,10 @@ export default function TeacherInspection() {
                                   className={`px-2.5 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center space-x-1 border ${
                                     isNormal
                                       ? 'bg-emerald-600 text-white border-emerald-600 shadow-md ring-2 ring-emerald-300 scale-105'
-                                      : 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-600 hover:text-white shadow-2xs'
+                                      : 'bg-emerald-50/40 text-emerald-700/60 border-emerald-200/50 hover:bg-emerald-600 hover:text-white'
                                   }`}
                                 >
-                                  <CheckCircle2 className={`w-3.5 h-3.5 ${isNormal ? 'text-white' : 'text-emerald-600'}`} />
+                                  <CheckCircle2 className={`w-3.5 h-3.5 ${isNormal ? 'text-white' : 'text-emerald-600/60'}`} />
                                   <span>ปกติ</span>
                                 </button>
 
@@ -544,10 +544,10 @@ export default function TeacherInspection() {
                                   className={`px-2.5 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center space-x-1 border ${
                                     isDamaged
                                       ? 'bg-rose-600 text-white border-rose-600 shadow-md ring-2 ring-rose-300 scale-105'
-                                      : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-600 hover:text-white shadow-2xs'
+                                      : 'bg-rose-50/40 text-rose-700/60 border-rose-200/50 hover:bg-rose-600 hover:text-white'
                                   }`}
                                 >
-                                  <AlertTriangle className={`w-3.5 h-3.5 ${isDamaged ? 'text-white' : 'text-rose-600'}`} />
+                                  <AlertTriangle className={`w-3.5 h-3.5 ${isDamaged ? 'text-white' : 'text-rose-600/60'}`} />
                                   <span>ชำรุด</span>
                                 </button>
 
@@ -557,10 +557,10 @@ export default function TeacherInspection() {
                                   className={`px-2.5 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center space-x-1 border ${
                                     isLost
                                       ? 'bg-purple-600 text-white border-purple-600 shadow-md ring-2 ring-purple-300 scale-105'
-                                      : 'bg-purple-50 text-purple-900 border-purple-300 hover:bg-purple-600 hover:text-white shadow-2xs'
+                                      : 'bg-purple-50/40 text-purple-700/60 border-purple-200/50 hover:bg-purple-600 hover:text-white'
                                   }`}
                                 >
-                                  <HelpCircle className={`w-3.5 h-3.5 ${isLost ? 'text-white' : 'text-purple-600'}`} />
+                                  <HelpCircle className={`w-3.5 h-3.5 ${isLost ? 'text-white' : 'text-purple-600/60'}`} />
                                   <span>สูญหาย</span>
                                 </button>
                               </div>
