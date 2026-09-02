@@ -14,7 +14,8 @@ import {
   Building2, 
   UserCheck, 
   Calendar,
-  Sparkles
+  Sparkles,
+  HelpCircle
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -25,7 +26,7 @@ export default function ReportsView() {
   const [selectedRound, setSelectedRound] = useState(config.current_round);
   const [selectedGrade, setSelectedGrade] = useState("ทั้งหมด");
   const [selectedRoom, setSelectedRoom] = useState("ทั้งหมด");
-  const [statusFilter, setStatusFilter] = useState("ทั้งหมด"); // 'ทั้งหมด', 'damaged', 'normal'
+  const [statusFilter, setStatusFilter] = useState("ทั้งหมด"); // 'ทั้งหมด', 'damaged', 'lost', 'normal'
 
   const [loading, setLoading] = useState(false);
   const [devices, setDevices] = useState([]);
@@ -93,14 +94,34 @@ export default function ReportsView() {
       const items = ins ? (ins.items || {}) : {};
       
       const damagedList = [];
+      const lostList = [];
+
       ['tablet', 'spen', 'keyboard', 'cable_white', 'cable_black', 'adapter'].forEach(cat => {
-        if (items[cat] && items[cat].status === 'damaged') {
-          damagedList.push(`${getCategoryLabel(cat)}${items[cat].note ? ` (${items[cat].note})` : ''}`);
+        if (items[cat]) {
+          if (items[cat].status === 'damaged') {
+            damagedList.push(`${getCategoryLabel(cat)}${items[cat].note ? ` (${items[cat].note})` : ''}`);
+          } else if (items[cat].status === 'lost') {
+            lostList.push(`${getCategoryLabel(cat)}${items[cat].note ? ` (${items[cat].note})` : ''}`);
+          }
         }
       });
 
       const isChecked = !!ins;
       const isDamaged = damagedList.length > 0;
+      const isLost = lostList.length > 0;
+
+      const statusLabel = !isChecked 
+        ? 'ยังไม่ได้ตรวจ' 
+        : isLost 
+        ? 'สูญหาย' 
+        : isDamaged 
+        ? 'ชำรุด' 
+        : 'ปกติ';
+
+      const issueDetails = [
+        ...lostList.map(l => `[สูญหาย] ${l}`),
+        ...damagedList.map(d => `[ชำรุด] ${d}`)
+      ].join(', ');
 
       return {
         'ลำดับ': idx + 1,
@@ -113,8 +134,8 @@ export default function ReportsView() {
         'Serial No': dev.serial_no,
         'เลข BOX': dev.box_no,
         'เลข BOX KB': dev.box_kb_no,
-        'สถานะการตรวจ': isChecked ? (isDamaged ? 'ชำรุด' : 'ปกติ') : 'ยังไม่ได้ตรวจ',
-        'รายการชำรุด / หมายเหตุ': damagedList.join(', ') || '-',
+        'สถานะการตรวจ': statusLabel,
+        'รายการชำรุด/สูญหาย / หมายเหตุ': issueDetails || '-',
         'ครูผู้ตรวจเช็ค': ins ? (ins.inspector || 'ครูผู้ตรวจเช็ค') : '-',
         'วันที่ตรวจเช็ค': ins && ins.inspected_at ? new Date(ins.inspected_at).toLocaleDateString('th-TH') : '-'
       };
@@ -133,6 +154,11 @@ export default function ReportsView() {
       if (!ins) return false;
       const items = ins.items || {};
       return Object.values(items).some(it => it.status === 'damaged');
+    }
+    if (statusFilter === 'lost') {
+      if (!ins) return false;
+      const items = ins.items || {};
+      return Object.values(items).some(it => it.status === 'lost');
     }
     if (statusFilter === 'normal') {
       if (!ins) return false;
@@ -263,6 +289,7 @@ export default function ReportsView() {
             >
               <option value="ทั้งหมด">ทั้งหมด</option>
               <option value="damaged">เฉพาะที่ชำรุด</option>
+              <option value="lost">เฉพาะที่สูญหาย</option>
               <option value="normal">เฉพาะที่ปกติ</option>
             </select>
           </div>
@@ -295,22 +322,26 @@ export default function ReportsView() {
 
         {/* Top KPI Cards Summary */}
         {stats && (
-          <div className="grid grid-cols-4 gap-3 mb-5 text-center text-xs">
+          <div className="grid grid-cols-5 gap-2.5 mb-5 text-center text-xs">
             <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200">
               <span className="text-slate-500 font-bold block">อุปกรณ์ทั้งหมด</span>
-              <p className="text-lg sm:text-xl font-extrabold text-slate-900 mt-0.5">{stats.totalDevices} เครื่อง</p>
+              <p className="text-base sm:text-lg font-extrabold text-slate-900 mt-0.5">{stats.totalDevices} เครื่อง</p>
             </div>
             <div className="p-3 bg-blue-50/70 rounded-2xl border border-blue-200">
               <span className="text-blue-700 font-bold block">ตรวจเช็คแล้ว</span>
-              <p className="text-lg sm:text-xl font-extrabold text-blue-800 mt-0.5">{stats.checkedCount} เครื่อง ({stats.progressPercent}%)</p>
+              <p className="text-base sm:text-lg font-extrabold text-blue-800 mt-0.5">{stats.checkedCount} เครื่อง ({stats.progressPercent}%)</p>
             </div>
             <div className="p-3 bg-emerald-50/70 rounded-2xl border border-emerald-200">
               <span className="text-emerald-700 font-bold block">ปกติ</span>
-              <p className="text-lg sm:text-xl font-extrabold text-emerald-700 mt-0.5">{stats.normalCount} เครื่อง</p>
+              <p className="text-base sm:text-lg font-extrabold text-emerald-700 mt-0.5">{stats.normalCount} เครื่อง</p>
             </div>
             <div className="p-3 bg-rose-50/70 rounded-2xl border border-rose-200">
               <span className="text-rose-700 font-bold block">ชำรุด</span>
-              <p className="text-lg sm:text-xl font-extrabold text-rose-700 mt-0.5">{stats.damagedCount} เครื่อง</p>
+              <p className="text-base sm:text-lg font-extrabold text-rose-700 mt-0.5">{stats.damagedCount} เครื่อง</p>
+            </div>
+            <div className="p-3 bg-purple-50/70 rounded-2xl border border-purple-200">
+              <span className="text-purple-700 font-bold block">สูญหาย</span>
+              <p className="text-base sm:text-lg font-extrabold text-purple-700 mt-0.5">{stats.lostCount || 0} เครื่อง</p>
             </div>
           </div>
         )}
@@ -331,7 +362,7 @@ export default function ReportsView() {
                 <th className="p-2.5 border border-slate-300 font-mono">BOX</th>
                 <th className="p-2.5 border border-slate-300 font-mono">BOX KB</th>
                 <th className="p-2.5 border border-slate-300 text-center">ผลการตรวจ</th>
-                <th className="p-2.5 border border-slate-300">รายการอุปกรณ์ที่ชำรุด / หมายเหตุ</th>
+                <th className="p-2.5 border border-slate-300">รายการอุปกรณ์ที่ชำรุด/สูญหาย / หมายเหตุ</th>
                 <th className="p-2.5 border border-slate-300 text-slate-900 font-bold">ครูผู้ตรวจเช็ค</th>
               </tr>
             </thead>
@@ -356,13 +387,20 @@ export default function ReportsView() {
                   const items = ins ? (ins.items || {}) : {};
 
                   const damagedList = [];
+                  const lostList = [];
+
                   ['tablet', 'spen', 'keyboard', 'cable_white', 'cable_black', 'adapter'].forEach(cat => {
-                    if (items[cat] && items[cat].status === 'damaged') {
-                      damagedList.push(`${getCategoryLabel(cat)}${items[cat].note ? `: ${items[cat].note}` : ''}`);
+                    if (items[cat]) {
+                      if (items[cat].status === 'damaged') {
+                        damagedList.push(`${getCategoryLabel(cat)}${items[cat].note ? `: ${items[cat].note}` : ''}`);
+                      } else if (items[cat].status === 'lost') {
+                        lostList.push(`${getCategoryLabel(cat)}${items[cat].note ? `: ${items[cat].note}` : ''}`);
+                      }
                     }
                   });
 
                   const isDamaged = damagedList.length > 0;
+                  const isLost = lostList.length > 0;
 
                   return (
                     <tr key={dev.id} className="border border-slate-300 hover:bg-slate-50">
@@ -381,15 +419,20 @@ export default function ReportsView() {
                       <td className="p-2 border border-slate-300 text-center font-extrabold">
                         {!ins ? (
                           <span className="text-slate-400">ยังไม่ตรวจ</span>
+                        ) : isLost ? (
+                          <span className="text-purple-700 font-extrabold">สูญหาย</span>
                         ) : isDamaged ? (
-                          <span className="text-rose-600">ชำรุด</span>
+                          <span className="text-rose-600 font-extrabold">ชำรุด</span>
                         ) : (
-                          <span className="text-emerald-600">ปกติ</span>
+                          <span className="text-emerald-600 font-extrabold">ปกติ</span>
                         )}
                       </td>
                       <td className="p-2 border border-slate-300 text-slate-700">
-                        {isDamaged ? (
-                          <span className="text-rose-700 font-bold">{damagedList.join('; ')}</span>
+                        {isLost || isDamaged ? (
+                          <div className="space-y-0.5 text-[11px]">
+                            {isLost && <span className="text-purple-800 font-bold block">สูญหาย: {lostList.join('; ')}</span>}
+                            {isDamaged && <span className="text-rose-700 font-bold block">ชำรุด: {damagedList.join('; ')}</span>}
+                          </div>
                         ) : (
                           <span className="text-slate-400">-</span>
                         )}

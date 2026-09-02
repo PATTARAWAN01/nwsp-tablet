@@ -17,7 +17,8 @@ import {
   UserCheck,
   XCircle,
   AlertCircle,
-  AlertTriangle
+  AlertTriangle,
+  HelpCircle
 } from 'lucide-react';
 
 export default function TeacherInspection() {
@@ -33,39 +34,37 @@ export default function TeacherInspection() {
   const [devices, setDevices] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Modal Popup Notification State
-  const [modalPopup, setModalPopup] = useState(null); // { type: 'success'|'error'|'warning', title: '', message: '' }
+  // Storage for inspection checklist state per device serial_no
+  // Format: { [serial_no]: { tablet: { status: 'normal'|'damaged'|'lost', note: '' }, ... } }
+  const [inspectionsData, setInspectionsData] = useState({});
 
-  const [formState, setFormState] = useState({});
+  // Popup Modal Alert
+  const [modalPopup, setModalPopup] = useState(null);
 
-  const roomKey = selectedGrade === 'ครู' ? 'ครู' : `${selectedGrade}/${selectedRoom}`;
-  // Enforce mandatory PIN verification per selected room
-  const isAuthorized = teacherSession && teacherSession.roomKey === roomKey;
+  const roomKey = selectedGrade === "ครู" ? "ครู" : `${selectedGrade}/${selectedRoom}`;
 
-  const loadRoomData = async () => {
-    if (!isAuthorized) return;
+  const loadDevicesAndInspections = async () => {
     setLoading(true);
     try {
       const devList = await deviceService.getDevices({
         academicYear: config.current_academic_year,
         grade: selectedGrade,
-        room: selectedGrade === 'ครู' ? '-' : selectedRoom
+        room: selectedRoom
       });
       setDevices(devList);
 
-      const insMap = await inspectionService.getInspections(
-        config.current_academic_year,
+      const existingIns = await inspectionService.getInspections(
+        config.current_academic_year, 
         config.current_round
       );
 
-      const initialForm = {};
+      const initialData = {};
       devList.forEach(dev => {
-        const existing = insMap[dev.serial_no];
-        if (existing && existing.items) {
-          initialForm[dev.serial_no] = JSON.parse(JSON.stringify(existing.items));
+        if (existingIns[dev.serial_no]) {
+          initialData[dev.serial_no] = existingIns[dev.serial_no].items || {};
         } else {
-          // REQUIRE MANUAL SELECTION: Do NOT pre-fill as 'normal' automatically
-          initialForm[dev.serial_no] = {
+          // Neutral initial state (status: null, note: '') requiring active selection
+          initialData[dev.serial_no] = {
             tablet: { status: null, note: '' },
             spen: { status: null, note: '' },
             keyboard: { status: null, note: '' },
@@ -75,29 +74,31 @@ export default function TeacherInspection() {
           };
         }
       });
-      setFormState(initialForm);
+      setInspectionsData(initialData);
 
     } catch (e) {
-      console.error("Failed to load room data:", e);
+      console.error(e);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (isAuthorized) {
-      loadRoomData();
+    if (teacherSession) {
+      loadDevicesAndInspections();
     }
-  }, [selectedGrade, selectedRoom, config.current_academic_year, config.current_round, isAuthorized]);
+  }, [teacherSession, selectedGrade, selectedRoom, config.current_academic_year, config.current_round]);
 
-  const handlePinSubmit = async (e) => {
+  const handleRoomLogin = async (e) => {
     e.preventDefault();
     setAuthError("");
+
     if (!teacherNameInput || teacherNameInput.trim() === "") {
       setAuthError("กรุณากรอกชื่อ-นามสกุล ครูผู้ตรวจเช็ค");
       return;
     }
-    const res = await loginTeacherRoom(selectedGrade, selectedRoom, pinInput, teacherNameInput);
+
+    const res = await loginTeacherRoom(selectedGrade, selectedRoom, pinInput, teacherNameInput.trim());
     if (!res.success) {
       setAuthError(res.message);
     } else {
@@ -105,49 +106,34 @@ export default function TeacherInspection() {
     }
   };
 
-  const handleItemStatusChange = (serialNo, itemKey, status) => {
-    setFormState(prev => {
-      const currentDevItems = prev[serialNo] || {
-        tablet: { status: null, note: '' },
-        spen: { status: null, note: '' },
-        keyboard: { status: null, note: '' },
-        cable_white: { status: null, note: '' },
-        cable_black: { status: null, note: '' },
-        adapter: { status: null, note: '' }
-      };
-
-      return {
-        ...prev,
-        [serialNo]: {
-          ...currentDevItems,
-          [itemKey]: {
-            ...currentDevItems[itemKey],
-            status: status,
-            note: status === 'normal' ? '' : currentDevItems[itemKey].note
-          }
+  const handleItemStatusChange = (serialNo, itemKey, statusValue) => {
+    setInspectionsData(prev => ({
+      ...prev,
+      [serialNo]: {
+        ...prev[serialNo],
+        [itemKey]: {
+          ...(prev[serialNo]?.[itemKey] || {}),
+          status: statusValue
         }
-      };
-    });
+      }
+    }));
   };
 
-  const handleItemNoteChange = (serialNo, itemKey, noteText) => {
-    setFormState(prev => {
-      const currentDevItems = prev[serialNo];
-      return {
-        ...prev,
-        [serialNo]: {
-          ...currentDevItems,
-          [itemKey]: {
-            ...currentDevItems[itemKey],
-            note: noteText
-          }
+  const handleItemNoteChange = (serialNo, itemKey, noteValue) => {
+    setInspectionsData(prev => ({
+      ...prev,
+      [serialNo]: {
+        ...prev[serialNo],
+        [itemKey]: {
+          ...(prev[serialNo]?.[itemKey] || {}),
+          note: noteValue
         }
-      };
-    });
+      }
+    }));
   };
 
   const handleMarkStudentAllNormal = (serialNo) => {
-    setFormState(prev => ({
+    setInspectionsData(prev => ({
       ...prev,
       [serialNo]: {
         tablet: { status: 'normal', note: '' },
@@ -161,32 +147,29 @@ export default function TeacherInspection() {
   };
 
   const handleSaveInspections = async () => {
-    const recordsToSave = [];
     const partiallyCheckedStudents = [];
+    const recordsToSave = [];
 
     devices.forEach(dev => {
-      const items = formState[dev.serial_no] || {};
-      const selectedItemsCount = Object.values(items).filter(it => it && it.status !== null && it.status !== undefined).length;
-      
-      if (selectedItemsCount === 6) {
-        // Fully checked for this student (6 out of 6 items selected)
+      const items = inspectionsData[dev.serial_no] || {};
+      const selectedCount = Object.values(items).filter(it => it && it.status !== null).length;
+
+      if (selectedCount === 6) {
         recordsToSave.push({
-          serial_no: dev.serial_no,
           device_id: dev.id,
+          serial_no: dev.serial_no,
           items: items
         });
-      } else if (selectedItemsCount > 0 && selectedItemsCount < 6) {
-        // Partially checked for this student (e.g. 2 out of 6 items selected)
+      } else if (selectedCount > 0 && selectedCount < 6) {
         partiallyCheckedStudents.push(`${dev.prefix || ''}${dev.first_name} ${dev.last_name}`);
       }
-      // If selectedItemsCount === 0 -> Unchecked student, skipped cleanly without blocking save of other checked students!
     });
 
     if (partiallyCheckedStudents.length > 0) {
       setModalPopup({
         type: 'warning',
         title: 'ตรวจเช็คอุปกรณ์ไม่ครบ 6 รายการ!',
-        message: `มีอุปกรณ์ของนักเรียนที่เลือกยังไม่ครบทั้ง 6 รายการ: ${partiallyCheckedStudents.join(', ')} (กรุณาเลือก "ปกติ" หรือ "ชำรุด" ให้ครบทั้ง 6 รายการสำหรับเครื่องนั้นๆ หรือกด "ปกติทุกรายการ")`
+        message: `มีอุปกรณ์ของนักเรียนที่เลือกยังไม่ครบทั้ง 6 รายการ: ${partiallyCheckedStudents.join(', ')} (กรุณาเลือก "ปกติ", "ชำรุด" หรือ "สูญหาย" ให้ครบทั้ง 6 รายการสำหรับเครื่องนั้นๆ หรือกด "ปกติทุกรายการ")`
       });
       return;
     }
@@ -214,121 +197,86 @@ export default function TeacherInspection() {
 
       setModalPopup({
         type: 'success',
-        title: 'บันทึกข้อมูลสำเร็จ! 🎉',
-        message: `บันทึกผลการตรวจเช็คอุปกรณ์ของนักเรียน/ครูจำนวน ${recordsToSave.length} เครื่อง (ห้อง ${roomKey} รอบที่ ${config.current_round}) โดย ${inspectorName} เรียบร้อยแล้ว`
+        title: 'บันทึกผลการตรวจเช็คสำเร็จ! 🎉',
+        message: `บันทึกข้อมูลอุปกรณ์จำนวน ${recordsToSave.length} เครื่อง ในรอบที่ ${config.current_round} เรียบร้อยแล้ว (โดย ${inspectorName})`
       });
 
-      await loadRoomData();
+      await loadDevicesAndInspections();
     } catch (e) {
       setModalPopup({
         type: 'error',
-        title: 'บันทึกข้อมูลไม่สำเร็จ!',
-        message: `เกิดข้อผิดพลาด: ${e.message}`
+        title: 'เกิดข้อผิดพลาดในการบันทึก!',
+        message: e.message
       });
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredDevices = devices.filter(d => 
-    !searchQuery ||
-    (d.prefix && d.prefix.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    d.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    d.last_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    d.serial_no.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    d.box_no.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredDevices = devices.filter(d => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      d.serial_no.toLowerCase().includes(q) ||
+      (d.prefix && d.prefix.toLowerCase().includes(q)) ||
+      d.first_name.toLowerCase().includes(q) ||
+      d.last_name.toLowerCase().includes(q)
+    );
+  });
 
-  // Count how many devices are fully checked vs unchecked
-  const fullyCheckedCount = devices.filter(d => {
-    const items = formState[d.serial_no] || {};
-    return Object.values(items).filter(it => it && it.status !== null && it.status !== undefined).length === 6;
+  const fullyCheckedCount = devices.filter(dev => {
+    const items = inspectionsData[dev.serial_no] || {};
+    return Object.values(items).filter(it => it && it.status !== null).length === 6;
   }).length;
 
   return (
     <div className="space-y-6">
       
-      {/* Header Banner - Sleek Dark Indigo */}
-      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl glow-blue flex flex-col md:flex-row md:items-center justify-between gap-6">
+      {/* Top Header Banner */}
+      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <div className="inline-flex items-center space-x-2 text-amber-300 text-xs font-bold mb-2 px-3 py-1 bg-white/10 backdrop-blur-md rounded-full border border-white/20">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>ระบบตรวจเช็คอุปกรณ์ประจำห้องเรียน</span>
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>ระบบตรวจเช็คอุปกรณ์สำหรับครูที่ปรึกษา</span>
           </div>
           <h2 className="text-2xl sm:text-3xl font-extrabold font-prompt text-white">
-            ตรวจเช็คอุปกรณ์ (รอบที่ {config.current_round} / 5)
+            บันทึกการตรวจเช็ค Tablet 6 รายการ
           </h2>
           <p className="text-slate-300 text-xs sm:text-sm mt-1 font-light">
-            ปีการศึกษา {config.current_academic_year} • โรงเรียนหนองวัวซอพิทยาคม {teacherSession ? `• ผู้ตรวจ: ${teacherSession.teacherName}` : ''}
+            รอบการตรวจเช็คที่ {config.current_round} / 5 • ปีการศึกษา {config.current_academic_year}
           </p>
         </div>
 
-        {/* Room Switcher Controls */}
-        <div className="flex items-center space-x-3 bg-white/10 backdrop-blur-md p-2.5 rounded-2xl border border-white/20">
-          <div className="flex flex-col">
-            <span className="text-[10px] text-amber-300 font-bold uppercase">ระดับชั้น</span>
-            <select
-              value={selectedGrade}
-              onChange={(e) => {
-                setSelectedGrade(e.target.value);
-                if (e.target.value === 'ครู') setSelectedRoom('-');
-              }}
-              className="bg-slate-900 text-white text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-700 focus:outline-none cursor-pointer"
-            >
-              <option value="ม.4">ม.4</option>
-              <option value="ม.5">ม.5</option>
-              <option value="ม.6">ม.6</option>
-              <option value="ครู">ครูผู้สอน</option>
-            </select>
-          </div>
-
-          {selectedGrade !== 'ครู' && (
-            <div className="flex flex-col">
-              <span className="text-[10px] text-amber-300 font-bold uppercase">ห้อง</span>
-              <select
-                value={selectedRoom}
-                onChange={(e) => setSelectedRoom(e.target.value)}
-                className="bg-slate-900 text-white text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-700 focus:outline-none cursor-pointer"
-              >
-                <option value="1">ห้อง 1</option>
-                <option value="2">ห้อง 2</option>
-                <option value="3">ห้อง 3</option>
-                <option value="4">ห้อง 4</option>
-              </select>
-            </div>
-          )}
-
-          {isAuthorized && teacherSession && (
-            <button
-              onClick={logoutTeacher}
-              className="self-end px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition-colors shadow-xs flex items-center space-x-1"
-              title="ออกจากห้องนี้"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">ออก</span>
-            </button>
-          )}
-        </div>
+        {teacherSession && (
+          <button
+            onClick={logoutTeacher}
+            className="self-start md:self-auto px-4 py-2.5 bg-white/10 hover:bg-rose-600 text-white border border-white/20 rounded-2xl text-xs font-extrabold transition-colors shadow-xs flex items-center space-x-2"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>ออกจากห้อง {teacherSession.grade}/{teacherSession.room}</span>
+          </button>
+        )}
       </div>
 
-      {/* Mandatory Room PIN & Teacher Name Auth Screen */}
-      {!isAuthorized ? (
-        <div className="bg-white rounded-3xl p-8 border-2 border-slate-200 shadow-xl max-w-md mx-auto text-center space-y-6 animate-fade-in my-8">
-          <div className="w-16 h-16 rounded-3xl bg-blue-50 text-blue-700 flex items-center justify-center mx-auto border border-blue-100 shadow-xs">
+      {!teacherSession ? (
+        
+        /* PIN Login Card for Teachers */
+        <div className="modern-glass-card rounded-3xl p-8 border border-white/80 shadow-xl max-w-md mx-auto space-y-6 animate-fade-in my-8">
+          <div className="w-16 h-16 rounded-3xl bg-blue-100 text-blue-900 flex items-center justify-center mx-auto border border-blue-200 shadow-xs">
             <Lock className="w-8 h-8" />
           </div>
 
-          <div>
+          <div className="text-center">
             <h3 className="text-xl font-extrabold font-prompt text-slate-900">
-              ยืนยันรหัส PIN และชื่อผู้ตรวจเช็ค {roomKey}
+              เข้าสู่ระบบตรวจเช็คประจำห้อง
             </h3>
             <p className="text-xs text-slate-500 font-medium mt-1">
-              กรอกชื่อครูผู้ตรวจเช็คและรหัส PIN ประจำห้องเพื่อเข้าสู่ระบบ
+              เลือกระดับชั้น/ห้อง และกรอกรหัส PIN ประจำห้องเพื่อเริ่มตรวจเช็ค
             </p>
           </div>
 
-          <form onSubmit={handlePinSubmit} className="space-y-4 text-left">
-            <div className="grid grid-cols-2 gap-2 p-2 bg-slate-50 rounded-2xl border border-slate-200">
+          <form onSubmit={handleRoomLogin} className="space-y-4 font-sarabun">
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] font-bold text-slate-600 mb-1">ระดับชั้น:</label>
                 <select
@@ -336,6 +284,7 @@ export default function TeacherInspection() {
                   onChange={(e) => {
                     setSelectedGrade(e.target.value);
                     if (e.target.value === 'ครู') setSelectedRoom('-');
+                    else setSelectedRoom('1');
                   }}
                   className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800"
                 >
@@ -448,45 +397,33 @@ export default function TeacherInspection() {
 
           </div>
 
-          {/* Student Inspection Checklist List */}
+          {/* List of Device Cards */}
           {filteredDevices.length === 0 ? (
-            <div className="bg-white rounded-3xl p-10 text-center text-slate-500 border-2 border-slate-200">
-              <Tablet className="w-10 h-10 text-blue-400 mx-auto mb-2 opacity-50" />
-              <p className="font-bold text-slate-700">ไม่พบข้อมูลอุปกรณ์ในห้องนี้</p>
-              <p className="text-xs text-slate-400">กรุณาลงทะเบียนหรือนำเข้าข้อมูล CSV ในระบบหลังบ้าน</p>
+            <div className="p-12 text-center text-slate-500 bg-white/70 rounded-3xl border border-slate-200">
+              ไม่พบข้อมูลอุปกรณ์ตามเงื่อนไขที่เลือกในห้องนี้
             </div>
           ) : (
-            <div className="space-y-5">
+            <div className="space-y-4">
               {filteredDevices.map((dev, index) => {
-                const devItems = formState[dev.serial_no] || {
-                  tablet: { status: null, note: '' },
-                  spen: { status: null, note: '' },
-                  keyboard: { status: null, note: '' },
-                  cable_white: { status: null, note: '' },
-                  cable_black: { status: null, note: '' },
-                  adapter: { status: null, note: '' }
-                };
-
-                const selectedCount = Object.values(devItems).filter(it => it && it.status !== null && it.status !== undefined).length;
+                const devItems = inspectionsData[dev.serial_no] || {};
+                
+                const selectedCount = Object.values(devItems).filter(it => it && it.status !== null).length;
                 const isAll6Selected = selectedCount === 6;
-                const isAllNormal = isAll6Selected && Object.values(devItems).every(it => it.status === 'normal');
+
+                const isAllNormal = isAll6Selected && Object.values(devItems).every(it => it && it.status === 'normal');
 
                 return (
-                  /* High Contrast Solid White Student Card */
                   <div 
-                    key={dev.id}
-                    className={`bg-white rounded-3xl border-2 transition-all p-6 shadow-md ${
-                      selectedCount === 0
-                        ? 'border-slate-300/90' 
-                        : selectedCount > 0 && selectedCount < 6
-                        ? 'border-amber-400 bg-amber-50/20 shadow-amber-100'
-                        : !isAllNormal 
-                        ? 'border-rose-300 bg-rose-50/20 shadow-rose-100' 
-                        : 'border-emerald-300 bg-emerald-50/10 shadow-emerald-100'
+                    key={dev.id} 
+                    className={`p-5 sm:p-6 rounded-3xl border transition-all duration-200 ${
+                      isAll6Selected 
+                        ? 'bg-white border-emerald-300 shadow-md ring-1 ring-emerald-200' 
+                        : 'bg-white/90 border-slate-200 shadow-sm'
                     }`}
                   >
-                    {/* Device & Owner Info Header */}
-                    <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-slate-200 gap-4">
+                    
+                    {/* Device & Student Info Header */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
                       
                       <div className="flex items-start space-x-3.5">
                         <span className="w-8 h-8 rounded-2xl bg-blue-100 text-blue-900 font-mono font-extrabold text-xs flex items-center justify-center shrink-0 mt-0.5 border border-blue-200">
@@ -551,7 +488,7 @@ export default function TeacherInspection() {
                       </button>
                     </div>
 
-                    {/* 6 Checklist Items Grid (High Contrast Interactive Action Buttons) */}
+                    {/* 6 Checklist Items Grid with 3 Options: ปกติ / ชำรุด / สูญหาย */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 mt-4">
                       {[
                         { key: 'tablet', label: '1. Tablet', icon: Tablet },
@@ -565,30 +502,33 @@ export default function TeacherInspection() {
                         const current = devItems[item.key] || { status: null, note: '' };
                         const isNormal = current.status === 'normal';
                         const isDamaged = current.status === 'damaged';
+                        const isLost = current.status === 'lost';
 
                         return (
                           <div 
                             key={item.key} 
                             className={`p-3.5 rounded-2xl border text-xs transition-all ${
-                              isDamaged 
+                              isLost
+                                ? 'bg-purple-100/90 border-purple-300 shadow-xs'
+                                : isDamaged 
                                 ? 'bg-rose-100/90 border-rose-300 shadow-xs' 
                                 : isNormal 
                                 ? 'bg-emerald-50 border-emerald-300' 
                                 : 'bg-slate-50/90 border-slate-200/90'
                             }`}
                           >
-                            <div className="flex items-center justify-between gap-2 mb-2">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
                               <div className="flex items-center space-x-2 font-bold text-slate-800">
-                                <Icon className={`w-4 h-4 ${isDamaged ? 'text-rose-600' : isNormal ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                <Icon className={`w-4 h-4 ${isLost ? 'text-purple-700' : isDamaged ? 'text-rose-600' : isNormal ? 'text-emerald-600' : 'text-slate-400'}`} />
                                 <span>{item.label}</span>
                               </div>
 
-                              {/* Interactive High Affordance Action Buttons */}
-                              <div className="inline-flex items-center space-x-1.5">
+                              {/* 3 Interactive Action Option Buttons: ปกติ / ชำรุด / สูญหาย */}
+                              <div className="inline-flex items-center space-x-1">
                                 <button
                                   type="button"
                                   onClick={() => handleItemStatusChange(dev.serial_no, item.key, 'normal')}
-                                  className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center space-x-1 border ${
+                                  className={`px-2.5 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center space-x-1 border ${
                                     isNormal
                                       ? 'bg-emerald-600 text-white border-emerald-600 shadow-md ring-2 ring-emerald-300 scale-105'
                                       : 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-600 hover:text-white shadow-2xs'
@@ -601,7 +541,7 @@ export default function TeacherInspection() {
                                 <button
                                   type="button"
                                   onClick={() => handleItemStatusChange(dev.serial_no, item.key, 'damaged')}
-                                  className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center space-x-1 border ${
+                                  className={`px-2.5 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center space-x-1 border ${
                                     isDamaged
                                       ? 'bg-rose-600 text-white border-rose-600 shadow-md ring-2 ring-rose-300 scale-105'
                                       : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-600 hover:text-white shadow-2xs'
@@ -610,16 +550,33 @@ export default function TeacherInspection() {
                                   <AlertTriangle className={`w-3.5 h-3.5 ${isDamaged ? 'text-white' : 'text-rose-600'}`} />
                                   <span>ชำรุด</span>
                                 </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleItemStatusChange(dev.serial_no, item.key, 'lost')}
+                                  className={`px-2.5 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center space-x-1 border ${
+                                    isLost
+                                      ? 'bg-purple-600 text-white border-purple-600 shadow-md ring-2 ring-purple-300 scale-105'
+                                      : 'bg-purple-50 text-purple-900 border-purple-300 hover:bg-purple-600 hover:text-white shadow-2xs'
+                                  }`}
+                                >
+                                  <HelpCircle className={`w-3.5 h-3.5 ${isLost ? 'text-white' : 'text-purple-600'}`} />
+                                  <span>สูญหาย</span>
+                                </button>
                               </div>
                             </div>
 
-                            {isDamaged && (
+                            {(isDamaged || isLost) && (
                               <input
                                 type="text"
-                                placeholder="ระบุอาการชำรุด..."
+                                placeholder={isLost ? "ระบุรายละเอียดการสูญหาย (เช่น หายที่ห้องเรียน)..." : "ระบุอาการชำรุด..."}
                                 value={current.note || ''}
                                 onChange={(e) => handleItemNoteChange(dev.serial_no, item.key, e.target.value)}
-                                className="w-full mt-2 px-3 py-2 bg-white border border-rose-300 rounded-xl text-xs text-rose-900 font-medium focus:outline-none focus:ring-2 focus:ring-rose-500 placeholder-rose-400 shadow-inner"
+                                className={`w-full mt-2 px-3 py-2 bg-white border rounded-xl text-xs font-medium focus:outline-none focus:ring-2 shadow-inner ${
+                                  isLost 
+                                    ? 'border-purple-300 text-purple-950 focus:ring-purple-500 placeholder-purple-400' 
+                                    : 'border-rose-300 text-rose-950 focus:ring-rose-500 placeholder-rose-400'
+                                }`}
                               />
                             )}
                           </div>

@@ -1,112 +1,126 @@
-import { initStoreIfEmpty } from './deviceService';
 import { db, isFirebaseActive } from '../firebase';
 import { 
   collection, 
   doc, 
+  getDoc, 
   getDocs, 
-  setDoc,
-  deleteDoc,
+  setDoc, 
+  deleteDoc, 
+  query, 
+  where,
   writeBatch 
 } from 'firebase/firestore';
 
-const INSPECTIONS_KEY = 'anywhere_tablet_inspections_v5';
-const LOGS_KEY = 'anywhere_tablet_access_logs_v5';
+const LOCAL_INSPECTIONS_KEY = 'nwsp_tablet_inspections';
+const LOCAL_LOGS_KEY = 'nwsp_tablet_logs';
 
-function getLocalInspections() {
+export function getCategoryLabel(categoryKey) {
+  const labels = {
+    tablet: '1. Tablet',
+    spen: '2. ปากกา S Pen',
+    keyboard: '3. คีย์บอร์ด',
+    cable_white: '4. สาย Tablet (ขาว)',
+    cable_black: '5. สาย KB (ดำ)',
+    adapter: '6. Adapter'
+  };
+  return labels[categoryKey] || categoryKey;
+}
+
+const getLocalInspections = () => {
   try {
-    const data = localStorage.getItem(INSPECTIONS_KEY);
-    return data ? JSON.parse(data) : {};
+    const raw = localStorage.getItem(LOCAL_INSPECTIONS_KEY);
+    return raw ? JSON.parse(raw) : {};
   } catch (e) {
-    console.error("Error loading inspections:", e);
     return {};
   }
-}
+};
 
-function setLocalInspections(inspections) {
-  try {
-    localStorage.setItem(INSPECTIONS_KEY, JSON.stringify(inspections));
-  } catch (e) {
-    console.error("Error saving inspections:", e);
-  }
-}
+const setLocalInspections = (data) => {
+  localStorage.setItem(LOCAL_INSPECTIONS_KEY, JSON.stringify(data));
+};
 
-function getLocalLogs() {
+const getLocalLogs = () => {
   try {
-    const data = localStorage.getItem(LOGS_KEY);
-    return data ? JSON.parse(data) : [];
+    const raw = localStorage.getItem(LOCAL_LOGS_KEY);
+    return raw ? JSON.parse(raw) : [];
   } catch (e) {
-    console.error("Error loading access logs:", e);
     return [];
   }
-}
+};
 
-function setLocalLogs(logs) {
-  try {
-    localStorage.setItem(LOGS_KEY, JSON.stringify(logs));
-  } catch (e) {
-    console.error("Error saving access logs:", e);
+const setLocalLogs = (data) => {
+  localStorage.setItem(LOCAL_LOGS_KEY, JSON.stringify(data));
+};
+
+// Check if store initialized
+const initStoreIfEmpty = async () => {
+  const localIns = getLocalInspections();
+  if (Object.keys(localIns).length > 0) return;
+
+  if (isFirebaseActive && db) {
+    try {
+      const snap = await getDocs(collection(db, "inspections"));
+      const map = {};
+      snap.forEach(docSnap => {
+        map[docSnap.id] = docSnap.data();
+      });
+      if (Object.keys(map).length > 0) {
+        setLocalInspections(map);
+      }
+    } catch (e) {
+      console.error("Firestore initStoreIfEmpty error:", e);
+    }
   }
-}
+};
 
 export const inspectionService = {
-  // Add an audit log entry
+  
+  // Add log entry
   addLog: async ({ academicYear, round, roomKey, teacherName, action, deviceCount, details }) => {
-    const newLog = {
-      id: `LOG-${Date.now()}-${Math.floor(Math.random()*1000)}`,
-      academic_year: academicYear,
-      round: Number(round),
-      room_key: roomKey,
-      teacher_name: teacherName || "ครูผู้ตรวจเช็ค",
-      action: action || "บันทึกผลการตรวจเช็ค",
-      device_count: deviceCount || 0,
+    const logId = `log_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+    const logItem = {
+      id: logId,
+      academic_year: academicYear || "2569",
+      round: Number(round || 1),
+      room_key: roomKey || "ไม่ระบุ",
+      teacher_name: teacherName || "ผู้ใช้งาน",
+      action: action || "ทำรายการ",
+      device_count: Number(deviceCount || 0),
       details: details || "",
       timestamp: new Date().toISOString()
     };
 
-    const logs = getLocalLogs();
-    logs.unshift(newLog);
-    setLocalLogs(logs);
-
     if (isFirebaseActive && db) {
-      setDoc(doc(db, "logs", newLog.id), newLog).catch(e => console.error("Firestore addLog error:", e));
+      setDoc(doc(db, "logs", logId), logItem).catch(e => console.error("Firestore addLog error:", e));
     }
 
-    return newLog;
+    const logs = getLocalLogs();
+    logs.unshift(logItem);
+    setLocalLogs(logs.slice(0, 500)); // keep last 500 logs locally
+    return logItem;
   },
 
-  // Delete single audit log entry
+  // Delete single log entry
   deleteLog: async (logId) => {
     if (isFirebaseActive && db) {
       deleteDoc(doc(db, "logs", logId)).catch(e => console.error("Firestore deleteLog error:", e));
     }
-
-    let logs = getLocalLogs();
-    logs = logs.filter(l => l.id !== logId);
+    const logs = getLocalLogs().filter(l => l.id !== logId);
     setLocalLogs(logs);
     return true;
   },
 
-  // Get all audit logs (with filters)
-  getLogs: async ({ academicYear, round, roomKey } = {}) => {
+  // Get audit logs
+  getLogs: async ({ academicYear, round, roomKey }) => {
     if (isFirebaseActive && db) {
       try {
         const snap = await getDocs(collection(db, "logs"));
-        let logs = snap.docs.map(d => d.data());
-        logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-        setLocalLogs(logs);
-
-        if (academicYear) {
-          logs = logs.filter(l => (l.academic_year || "2569") === academicYear);
-        }
-        if (round) {
-          logs = logs.filter(l => Number(l.round) === Number(round));
-        }
-        if (roomKey && roomKey !== "ทั้งหมด") {
-          logs = logs.filter(l => l.room_key === roomKey);
-        }
-        return logs;
+        const list = [];
+        snap.forEach(docSnap => list.push(docSnap.data()));
+        list.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        setLocalLogs(list);
       } catch (e) {
-        console.error("Firestore getLogs error, fallback to local:", e);
+        console.error("Firestore getLogs error:", e);
       }
     }
 
@@ -141,40 +155,35 @@ export const inspectionService = {
 
     if (isFirebaseActive && db) {
       try {
-        const snap = await getDocs(collection(db, "inspections"));
-        const result = {};
-        const freshObj = {};
-
-        snap.docs.forEach(d => {
-          const record = d.data();
-          freshObj[d.id] = record;
-          if (
-            (academicYear ? record.academic_year === academicYear : true) &&
-            (round ? Number(record.round) === Number(round) : true)
-          ) {
-            result[record.serial_no] = record;
-          }
+        const q = query(
+          collection(db, "inspections"),
+          where("academic_year", "==", String(academicYear)),
+          where("round", "==", Number(round))
+        );
+        const snap = await getDocs(q);
+        const map = {};
+        snap.forEach(docSnap => {
+          const data = docSnap.data();
+          map[data.serial_no] = data;
         });
+        
+        const localAll = getLocalInspections();
+        Object.assign(localAll, map);
+        setLocalInspections(localAll);
 
-        setLocalInspections(freshObj);
-        return result;
+        return map;
       } catch (e) {
         console.error("Firestore getInspections error:", e);
       }
     }
 
-    const all = getLocalInspections();
+    const localAll = getLocalInspections();
     const result = {};
-    Object.keys(all).forEach(key => {
-      const record = all[key];
-      if (
-        (academicYear ? record.academic_year === academicYear : true) &&
-        (round ? Number(record.round) === Number(round) : true)
-      ) {
-        result[record.serial_no] = record;
+    Object.values(localAll).forEach(rec => {
+      if (rec.academic_year === String(academicYear) && Number(rec.round) === Number(round)) {
+        result[rec.serial_no] = rec;
       }
     });
-
     return result;
   },
 
@@ -236,7 +245,7 @@ export const inspectionService = {
     return true;
   },
 
-  // Compute dashboard summary stats for a single round
+  // Compute dashboard summary stats for a single round (Normal vs Damaged vs Lost vs Unchecked)
   getDashboardStats: async (devicesList, academicYear, round) => {
     const inspections = await inspectionService.getInspections(academicYear, round);
     
@@ -244,6 +253,7 @@ export const inspectionService = {
     let checkedCount = 0;
     let normalCount = 0;
     let damagedCount = 0;
+    let lostCount = 0;
 
     const damagedBreakdown = {
       tablet: 0,
@@ -262,27 +272,37 @@ export const inspectionService = {
         checkedCount++;
         const items = ins.items || {};
         let isDeviceDamaged = false;
+        let isDeviceLost = false;
 
         const categories = ['tablet', 'spen', 'keyboard', 'cable_white', 'cable_black', 'adapter'];
         categories.forEach(cat => {
-          if (items[cat] && items[cat].status === 'damaged') {
-            isDeviceDamaged = true;
-            damagedBreakdown[cat]++;
-            damagedDetailsList.push({
-              serial_no: dev.serial_no,
-              box_no: dev.box_no,
-              box_kb_no: dev.box_kb_no,
-              owner: `${dev.prefix ? dev.prefix + ' ' : ''}${dev.first_name} ${dev.last_name}`,
-              type: dev.type,
-              grade_room: dev.type === 'teacher' ? 'ครู' : `${dev.grade}/${dev.room}`,
-              item_name: getCategoryLabel(cat),
-              note: items[cat].note || 'ชำรุด',
-              inspected_at: ins.inspected_at
-            });
+          if (items[cat]) {
+            const st = items[cat].status;
+            if (st === 'damaged' || st === 'lost') {
+              if (st === 'lost') isDeviceLost = true;
+              if (st === 'damaged') isDeviceDamaged = true;
+
+              damagedBreakdown[cat]++;
+              damagedDetailsList.push({
+                serial_no: dev.serial_no,
+                box_no: dev.box_no,
+                box_kb_no: dev.box_kb_no,
+                owner: `${dev.prefix ? dev.prefix + ' ' : ''}${dev.first_name} ${dev.last_name}`,
+                type: dev.type,
+                grade_room: dev.type === 'teacher' ? 'ครู' : `${dev.grade}/${dev.room}`,
+                item_name: getCategoryLabel(cat),
+                status_type: st, // 'damaged' or 'lost'
+                status_label: st === 'lost' ? 'สูญหาย' : 'ชำรุด',
+                note: items[cat].note || (st === 'lost' ? 'สูญหาย' : 'ชำรุด'),
+                inspected_at: ins.inspected_at
+              });
+            }
           }
         });
 
-        if (isDeviceDamaged) {
+        if (isDeviceLost) {
+          lostCount++;
+        } else if (isDeviceDamaged) {
           damagedCount++;
         } else {
           normalCount++;
@@ -294,6 +314,7 @@ export const inspectionService = {
     const progressPercent = totalDevices > 0 ? Math.round((checkedCount / totalDevices) * 100) : 0;
     const normalPercent = checkedCount > 0 ? Math.round((normalCount / checkedCount) * 100) : 0;
     const damagedPercent = checkedCount > 0 ? Math.round((damagedCount / checkedCount) * 100) : 0;
+    const lostPercent = checkedCount > 0 ? Math.round((lostCount / checkedCount) * 100) : 0;
 
     return {
       totalDevices,
@@ -301,9 +322,11 @@ export const inspectionService = {
       uncheckedCount,
       normalCount,
       damagedCount,
+      lostCount,
       progressPercent,
       normalPercent,
       damagedPercent,
+      lostPercent,
       damagedBreakdown,
       damagedDetailsList
     };
@@ -320,66 +343,28 @@ export const inspectionService = {
       cable_black: 0,
       adapter: 0
     };
-    
-    let totalDevices = devicesList.length;
 
     for (let r = 1; r <= 5; r++) {
-      const insMap = await inspectionService.getInspections(academicYear, r);
-      let checkedCount = 0;
-      let normalCount = 0;
-      let damagedCount = 0;
-
-      const roundDamagedBreakdown = {
-        tablet: 0, spen: 0, keyboard: 0, cable_white: 0, cable_black: 0, adapter: 0
-      };
-
-      devicesList.forEach(dev => {
-        const ins = insMap[dev.serial_no];
-        if (ins) {
-          checkedCount++;
-          const items = ins.items || {};
-          let isDamaged = false;
-          ['tablet', 'spen', 'keyboard', 'cable_white', 'cable_black', 'adapter'].forEach(cat => {
-            if (items[cat] && items[cat].status === 'damaged') {
-              isDamaged = true;
-              roundDamagedBreakdown[cat]++;
-              annualDamagedBreakdown[cat]++;
-            }
-          });
-          if (isDamaged) damagedCount++;
-          else normalCount++;
-        }
-      });
-
-      const progressPercent = totalDevices > 0 ? Math.round((checkedCount / totalDevices) * 100) : 0;
-
+      const st = await inspectionService.getDashboardStats(devicesList, academicYear, r);
       roundsData.push({
         round: r,
         name: `รอบที่ ${r}`,
-        checkedCount,
-        normalCount,
-        damagedCount,
-        progressPercent,
-        damagedBreakdown: roundDamagedBreakdown
+        totalDevices: st.totalDevices,
+        checkedCount: st.checkedCount,
+        normalCount: st.normalCount,
+        damagedCount: st.damagedCount,
+        lostCount: st.lostCount,
+        progressPercent: st.progressPercent
+      });
+
+      Object.keys(st.damagedBreakdown).forEach(cat => {
+        annualDamagedBreakdown[cat] += st.damagedBreakdown[cat];
       });
     }
 
     return {
-      totalDevices,
       roundsData,
       annualDamagedBreakdown
     };
   }
 };
-
-export function getCategoryLabel(key) {
-  const labels = {
-    tablet: 'Tablet',
-    spen: 'ปากกา S Pen',
-    keyboard: 'คีย์บอร์ด',
-    cable_white: 'สายชาร์จ Tablet (สีขาว)',
-    cable_black: 'สายชาร์จคีย์บอร์ด (สีดำ)',
-    adapter: 'Adapter'
-  };
-  return labels[key] || key;
-}

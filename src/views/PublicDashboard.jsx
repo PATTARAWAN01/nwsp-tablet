@@ -15,7 +15,7 @@ import {
   Calendar,
   Filter,
   BarChart2,
-  GraduationCap
+  HelpCircle
 } from 'lucide-react';
 import { 
   PieChart, 
@@ -74,10 +74,10 @@ export default function PublicDashboard() {
       const insMap = await inspectionService.getInspections(config.current_academic_year, config.current_round);
       
       const gradeMap = {
-        'ม.4': { total: 0, checked: 0, normal: 0, damaged: 0 },
-        'ม.5': { total: 0, checked: 0, normal: 0, damaged: 0 },
-        'ม.6': { total: 0, checked: 0, normal: 0, damaged: 0 },
-        'ครู': { total: 0, checked: 0, normal: 0, damaged: 0 }
+        'ม.4': { total: 0, checked: 0, normal: 0, damaged: 0, lost: 0 },
+        'ม.5': { total: 0, checked: 0, normal: 0, damaged: 0, lost: 0 },
+        'ม.6': { total: 0, checked: 0, normal: 0, damaged: 0, lost: 0 },
+        'ครู': { total: 0, checked: 0, normal: 0, damaged: 0, lost: 0 }
       };
 
       devList.forEach(dev => {
@@ -88,8 +88,11 @@ export default function PublicDashboard() {
           if (ins) {
             gradeMap[gKey].checked++;
             const items = ins.items || {};
-            const isDamaged = Object.values(items).some(it => it.status === 'damaged');
-            if (isDamaged) gradeMap[gKey].damaged++;
+            const isLost = Object.values(items).some(it => it && it.status === 'lost');
+            const isDamaged = Object.values(items).some(it => it && it.status === 'damaged');
+            
+            if (isLost) gradeMap[gKey].lost++;
+            else if (isDamaged) gradeMap[gKey].damaged++;
             else gradeMap[gKey].normal++;
           }
         }
@@ -101,6 +104,7 @@ export default function PublicDashboard() {
         checked: gradeMap[k].checked,
         normal: gradeMap[k].normal,
         damaged: gradeMap[k].damaged,
+        lost: gradeMap[k].lost,
         percent: gradeMap[k].total > 0 ? Math.round((gradeMap[k].checked / gradeMap[k].total) * 100) : 0
       }));
 
@@ -130,6 +134,7 @@ export default function PublicDashboard() {
   const donutPieData = [
     { name: 'ใช้งานได้ปกติ', value: stats.normalCount, color: '#10B981' },
     { name: 'พบอุปกรณ์ชำรุด', value: stats.damagedCount, color: '#EF4444' },
+    { name: 'อุปกรณ์สูญหาย', value: stats.lostCount || 0, color: '#8B5CF6' },
     { name: 'ยังไม่ได้ตรวจเช็ค', value: stats.uncheckedCount, color: '#CBD5E1' }
   ];
 
@@ -176,6 +181,10 @@ export default function PublicDashboard() {
             <div className="flex justify-between font-bold text-rose-400">
               <span>ชำรุด:</span>
               <span>{data.damaged} เครื่อง</span>
+            </div>
+            <div className="flex justify-between font-bold text-purple-400">
+              <span>สูญหาย:</span>
+              <span>{data.lost || 0} เครื่อง</span>
             </div>
             <div className="flex justify-between font-extrabold text-blue-300 pt-1 border-t border-slate-700">
               <span>ตรวจเช็คแล้ว:</span>
@@ -332,7 +341,7 @@ export default function PublicDashboard() {
                   </div>
                   <div>
                     <h3 className="text-base font-extrabold text-slate-900 font-prompt">สัดส่วนสถานะอุปกรณ์ทั้งหมด</h3>
-                    <p className="text-xs text-slate-500">ปกติ vs ชำรุด vs ยังไม่ได้ตรวจ (รอบที่ {config.current_round})</p>
+                    <p className="text-xs text-slate-500">ปกติ vs ชำรุด vs สูญหาย vs ยังไม่ได้ตรวจ (รอบที่ {config.current_round})</p>
                   </div>
                 </div>
                 <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-xl">
@@ -380,7 +389,7 @@ export default function PublicDashboard() {
                     <BarChart3 className="w-5 h-5" />
                   </div>
                   <h3 className="text-base font-extrabold text-slate-900 font-prompt">
-                    📊 จำนวนชำรุด 6 รายการ (รอบที่ {config.current_round})
+                    📊 จำนวนพบปัญหา 6 รายการ (รอบที่ {config.current_round})
                   </h3>
                 </div>
                 <span className="px-3 py-1 bg-rose-100 text-rose-800 rounded-full text-xs font-bold border border-rose-200">
@@ -427,7 +436,7 @@ export default function PublicDashboard() {
                     เปรียบเทียบการตรวจเช็คแยกตามระดับชั้น (ม.4 - ม.6 & ครู)
                   </h3>
                   <p className="text-xs text-slate-500">
-                    แสดงจำนวนเครื่องที่ตรวจแล้ว แยกตามสถานะปกติ และ ชำรุด (รอบที่ {config.current_round})
+                    แสดงจำนวนเครื่องที่ตรวจแล้ว แยกตามสถานะปกติ ชำรุด และ สูญหาย (รอบที่ {config.current_round})
                   </p>
                 </div>
               </div>
@@ -462,6 +471,10 @@ export default function PublicDashboard() {
                     <linearGradient id="barRed" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#F43F5E" stopOpacity={0.95} />
                       <stop offset="100%" stopColor="#E11D48" stopOpacity={0.95} />
+                    </linearGradient>
+                    <linearGradient id="barPurple" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#A855F7" stopOpacity={0.95} />
+                      <stop offset="100%" stopColor="#7E22CE" stopOpacity={0.95} />
                     </linearGradient>
                   </defs>
 
@@ -507,20 +520,28 @@ export default function PublicDashboard() {
                     stackId="a" 
                     animationDuration={1000}
                   />
+                  <Bar 
+                    dataKey="lost" 
+                    name="สูญหาย (เครื่อง)" 
+                    fill="url(#barPurple)" 
+                    radius={[8, 8, 0, 0]} 
+                    stackId="a" 
+                    animationDuration={1000}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* Table of Damaged Devices Log */}
+          {/* Table of Damaged & Lost Devices Log */}
           <div className="modern-glass rounded-3xl border border-white/80 shadow-sm overflow-hidden">
             <div className="p-5 border-b border-slate-200/60 flex items-center justify-between bg-white/60">
               <div>
                 <h3 className="text-base font-extrabold text-slate-900 font-prompt">
-                  ตารางแสดงรายการอุปกรณ์ที่ชำรุด
+                  ตารางแสดงรายการอุปกรณ์ที่ชำรุด / สูญหาย
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  แสดงเฉพาะอุปกรณ์ที่ได้รับแจ้งชำรุดในรอบการตรวจที่ {config.current_round}
+                  แสดงเฉพาะอุปกรณ์ที่ได้รับแจ้งชำรุดหรือสูญหายในรอบการตรวจที่ {config.current_round}
                 </p>
               </div>
               <span className="px-3 py-1 bg-rose-100 text-rose-800 rounded-full text-xs font-bold border border-rose-200">
@@ -537,8 +558,8 @@ export default function PublicDashboard() {
                     <th className="p-3.5 font-extrabold text-slate-900">ผู้ครอบครอง</th>
                     <th className="p-3.5">ชั้น/ห้อง</th>
                     <th className="p-3.5 font-mono">BOX / KB</th>
-                    <th className="p-3.5 text-rose-700">อุปกรณ์ที่ชำรุด</th>
-                    <th className="p-3.5">รายละเอียดอาการ</th>
+                    <th className="p-3.5">สถานะ / รายการอุปกรณ์</th>
+                    <th className="p-3.5">รายละเอียดอาการ / การสูญหาย</th>
                     <th className="p-3.5 text-right">วันที่แจ้ง</th>
                   </tr>
                 </thead>
@@ -546,7 +567,7 @@ export default function PublicDashboard() {
                   {stats.damagedDetailsList.length === 0 ? (
                     <tr>
                       <td colSpan="8" className="p-8 text-center text-slate-400 font-medium">
-                        🎉 ไม่พบอุปกรณ์ชำรุดในรอบการตรวจนี้ (อุปกรณ์ทุกเครื่องสมบูรณ์ 100%)
+                        🎉 ไม่พบอุปกรณ์ชำรุดหรือสูญหายในรอบการตรวจนี้ (อุปกรณ์ทุกเครื่องสมบูรณ์ 100%)
                       </td>
                     </tr>
                   ) : (
@@ -558,12 +579,19 @@ export default function PublicDashboard() {
                         <td className="p-3.5 font-semibold text-slate-800">{item.grade_room}</td>
                         <td className="p-3.5 font-mono text-slate-500">{item.box_no} / {item.box_kb_no}</td>
                         <td className="p-3.5">
-                          <span className="px-2.5 py-1 bg-rose-100 text-rose-800 rounded-full font-bold border border-rose-200 inline-flex items-center space-x-1">
-                            <AlertTriangle className="w-3 h-3 text-rose-600" />
-                            <span>{item.item_name}</span>
-                          </span>
+                          {item.status_type === 'lost' ? (
+                            <span className="px-2.5 py-1 bg-purple-100 text-purple-800 rounded-full font-bold border border-purple-200 inline-flex items-center space-x-1">
+                              <HelpCircle className="w-3 h-3 text-purple-700" />
+                              <span>{item.item_name} (สูญหาย)</span>
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-1 bg-rose-100 text-rose-800 rounded-full font-bold border border-rose-200 inline-flex items-center space-x-1">
+                              <AlertTriangle className="w-3 h-3 text-rose-600" />
+                              <span>{item.item_name} (ชำรุด)</span>
+                            </span>
+                          )}
                         </td>
-                        <td className="p-3.5 text-rose-900 font-medium">{item.note}</td>
+                        <td className="p-3.5 font-medium text-slate-800">{item.note}</td>
                         <td className="p-3.5 text-right font-mono text-slate-400">
                           {item.inspected_at ? new Date(item.inspected_at).toLocaleDateString('th-TH') : '-'}
                         </td>
@@ -594,7 +622,7 @@ export default function PublicDashboard() {
                   สรุปแนวโน้มการตรวจเช็คอุปกรณ์ 5 รอบ
                 </h2>
                 <p className="text-slate-300 text-xs sm:text-sm font-light max-w-xl">
-                  เปรียบเทียบผลการตรวจเช็ค จำนวนอุปกรณ์ปกติ และอุปกรณ์ชำรุด ตลอดทั้งปีการศึกษา
+                  เปรียบเทียบผลการตรวจเช็ค จำนวนอุปกรณ์ปกติ อุปกรณ์ชำรุด และสูญหาย ตลอดทั้งปีการศึกษา
                 </p>
               </div>
 
@@ -616,7 +644,7 @@ export default function PublicDashboard() {
                   <h3 className="text-base font-extrabold text-slate-900 font-prompt">
                     📈 กราฟแนวโน้มผลการตรวจเช็คตลอดปีการศึกษา (รอบที่ 1 ถึง รอบที่ 5)
                   </h3>
-                  <p className="text-xs text-slate-500">เปรียบเทียบจำนวนเครื่องที่ตรวจแล้ว ปกติ และ ชำรุด ในแต่ละรอบ</p>
+                  <p className="text-xs text-slate-500">เปรียบเทียบจำนวนเครื่องที่ตรวจแล้ว ปกติ ชำรุด และ สูญหาย ในแต่ละรอบ</p>
                 </div>
               </div>
             </div>
@@ -634,6 +662,7 @@ export default function PublicDashboard() {
                   <Line type="monotone" dataKey="checkedCount" name="ตรวจเช็คแล้ว (เครื่อง)" stroke="#3B82F6" strokeWidth={3} dot={{ r: 5 }} activeDot={{ r: 7 }} />
                   <Line type="monotone" dataKey="normalCount" name="ปกติ (เครื่อง)" stroke="#10B981" strokeWidth={3} dot={{ r: 5 }} activeDot={{ r: 7 }} />
                   <Line type="monotone" dataKey="damagedCount" name="ชำรุด (เครื่อง)" stroke="#EF4444" strokeWidth={3} dot={{ r: 5 }} activeDot={{ r: 7 }} />
+                  <Line type="monotone" dataKey="lostCount" name="สูญหาย (เครื่อง)" stroke="#8B5CF6" strokeWidth={3} dot={{ r: 5 }} activeDot={{ r: 7 }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -656,6 +685,7 @@ export default function PublicDashboard() {
                       <th className="p-3 text-blue-900">ตรวจแล้ว</th>
                       <th className="p-3 text-emerald-700">ปกติ</th>
                       <th className="p-3 text-rose-700">ชำรุด</th>
+                      <th className="p-3 text-purple-700">สูญหาย</th>
                       <th className="p-3 text-right">% ความคืบหน้า</th>
                     </tr>
                   </thead>
@@ -668,6 +698,7 @@ export default function PublicDashboard() {
                         <td className="p-3 font-mono font-bold text-blue-900">{rd.checkedCount} เครื่อง</td>
                         <td className="p-3 font-mono font-bold text-emerald-700">{rd.normalCount} เครื่อง</td>
                         <td className="p-3 font-mono font-bold text-rose-700">{rd.damagedCount} เครื่อง</td>
+                        <td className="p-3 font-mono font-bold text-purple-700">{rd.lostCount || 0} เครื่อง</td>
                         <td className="p-3 text-right font-mono font-extrabold text-slate-900">{rd.progressPercent}%</td>
                       </tr>
                     ))}
@@ -684,7 +715,7 @@ export default function PublicDashboard() {
                     <BarChart3 className="w-5 h-5" />
                   </div>
                   <h3 className="text-base font-extrabold text-slate-900 font-prompt">
-                    📦 รวมจำนวนชำรุดสะสม 6 รายการ ทั้งปีการศึกษา
+                    📦 รวมจำนวนชำรุด/สูญหายสะสม 6 รายการ ทั้งปีการศึกษา
                   </h3>
                 </div>
               </div>
