@@ -18,7 +18,9 @@ import {
   HelpCircle,
   Package,
   Search,
-  UserCheck
+  UserCheck,
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react';
 import { 
   PieChart, 
@@ -81,14 +83,14 @@ export default function PublicDashboard() {
       );
       setAnnualStats(annSt);
 
-      // 3. Grade level item-level comparison data (Unit: รายการ / ชุด)
+      // 3. Grade level set-level & item-level comparison data
       const insMap = await inspectionService.getInspections(config.current_academic_year, config.current_round);
       
       const gradeMap = {
-        'ม.4': { total: 0, checked: 0, normalItems: 0, damagedItems: 0, lostItems: 0 },
-        'ม.5': { total: 0, checked: 0, normalItems: 0, damagedItems: 0, lostItems: 0 },
-        'ม.6': { total: 0, checked: 0, normalItems: 0, damagedItems: 0, lostItems: 0 },
-        'ครู': { total: 0, checked: 0, normalItems: 0, damagedItems: 0, lostItems: 0 }
+        'ม.4': { total: 0, checked: 0, normalSets: 0, problemSets: 0, damagedItems: 0, lostItems: 0 },
+        'ม.5': { total: 0, checked: 0, normalSets: 0, problemSets: 0, damagedItems: 0, lostItems: 0 },
+        'ม.6': { total: 0, checked: 0, normalSets: 0, problemSets: 0, damagedItems: 0, lostItems: 0 },
+        'ครู': { total: 0, checked: 0, normalSets: 0, problemSets: 0, damagedItems: 0, lostItems: 0 }
       };
 
       devList.forEach(dev => {
@@ -99,16 +101,26 @@ export default function PublicDashboard() {
           if (ins) {
             gradeMap[gKey].checked++;
             const items = ins.items || {};
+            let devHasProblem = false;
             
-            // Loop through all 6 checklist items for item-level precision (หน่วย: รายการ)
             ['tablet', 'spen', 'keyboard', 'cable_white', 'cable_black', 'adapter'].forEach(cat => {
               if (items[cat]) {
                 const stVal = items[cat].status;
-                if (stVal === 'damaged') gradeMap[gKey].damagedItems++;
-                else if (stVal === 'lost') gradeMap[gKey].lostItems++;
-                else if (stVal === 'normal') gradeMap[gKey].normalItems++;
+                if (stVal === 'damaged') {
+                  gradeMap[gKey].damagedItems++;
+                  devHasProblem = true;
+                } else if (stVal === 'lost') {
+                  gradeMap[gKey].lostItems++;
+                  devHasProblem = true;
+                }
               }
             });
+
+            if (devHasProblem) {
+              gradeMap[gKey].problemSets++;
+            } else {
+              gradeMap[gKey].normalSets++;
+            }
           }
         }
       });
@@ -117,7 +129,8 @@ export default function PublicDashboard() {
         name: k === 'ครู' ? 'ครูผู้สอน' : `ชั้น ${k}`,
         total: gradeMap[k].total,
         checked: gradeMap[k].checked,
-        normalItems: gradeMap[k].normalItems,
+        normalSets: gradeMap[k].normalSets,
+        problemSets: gradeMap[k].problemSets,
         damagedItems: gradeMap[k].damagedItems,
         lostItems: gradeMap[k].lostItems,
         totalItemsInspected: gradeMap[k].checked * 6,
@@ -243,6 +256,10 @@ export default function PublicDashboard() {
           </p>
 
           <div className="space-y-1 text-[11px]">
+            <div className="flex justify-between font-bold text-amber-300 pb-1 border-b border-slate-700">
+              <span>ชุดที่พบปัญหา:</span>
+              <span className="font-mono text-xs">{data.problemSets} ชุด</span>
+            </div>
             <div className="flex justify-between font-bold text-rose-400">
               <span>อุปกรณ์ชำรุด:</span>
               <span className="font-mono text-xs">{data.damagedItems} รายการ</span>
@@ -250,10 +267,6 @@ export default function PublicDashboard() {
             <div className="flex justify-between font-bold text-purple-400">
               <span>อุปกรณ์สูญหาย:</span>
               <span className="font-mono text-xs">{data.lostItems} รายการ</span>
-            </div>
-            <div className="flex justify-between font-bold text-emerald-400 pt-1 border-t border-slate-700">
-              <span>อุปกรณ์ปกติ:</span>
-              <span className="font-mono text-xs">{data.normalItems} รายการ</span>
             </div>
           </div>
         </div>
@@ -394,18 +407,71 @@ export default function PublicDashboard() {
             </div>
           </div>
 
-          {/* Interactive Charts Row 1: Donut Pie Chart & Category Bars */}
+          {/* --- 4-CARD DASHBOARD GRID LAYOUT (2 Columns x 2 Rows) --- */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
-            {/* CHART 1: Donut Pie Chart (100% Mathematically Pure Item Universe) */}
+            {/* CARD 1: ความคืบหน้าการตรวจเช็คชุดอุปกรณ์ (จากทั้งหมด 377 ชุด) */}
+            <div className="modern-glass-card rounded-3xl p-6 border border-white/80 shadow-sm space-y-4 flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-slate-900 font-prompt">
+                      1. ความคืบหน้าการตรวจเช็คชุดอุปกรณ์
+                    </h3>
+                    <p className="text-xs text-slate-500">เป้าหมายทั้งหมด {stats.totalDevices} ชุด (รอบที่ {config.current_round})</p>
+                  </div>
+                </div>
+                <span className="text-xs font-extrabold text-blue-900 bg-blue-100 px-3 py-1 rounded-xl">
+                  {stats.progressPercent}% สำเร็จ
+                </span>
+              </div>
+
+              {/* Progress Display */}
+              <div className="py-2 space-y-4">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                  <span>ตรวจเช็คแล้ว <strong>{stats.checkedCount}</strong> จาก <strong>{stats.totalDevices}</strong> ชุด</span>
+                  <span className="text-blue-600 font-mono font-extrabold">{stats.progressPercent}%</span>
+                </div>
+
+                <div className="w-full bg-slate-100 rounded-full h-4 p-0.5 overflow-hidden border border-slate-200 shadow-inner">
+                  <div 
+                    className="h-full bg-gradient-to-r from-blue-600 via-indigo-600 to-amber-500 rounded-full transition-all duration-1000 shadow-sm"
+                    style={{ width: `${stats.progressPercent}%` }}
+                  />
+                </div>
+
+                {/* 3 Summary Stats Cards */}
+                <div className="grid grid-cols-3 gap-2.5 text-center text-xs pt-2">
+                  <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200">
+                    <span className="text-slate-500 font-bold block text-[11px]">ทั้งหมด</span>
+                    <p className="text-sm sm:text-base font-extrabold text-slate-900 font-mono mt-0.5">{stats.totalDevices} ชุด</p>
+                  </div>
+                  <div className="p-3 bg-blue-50/80 rounded-2xl border border-blue-200">
+                    <span className="text-blue-800 font-bold block text-[11px]">ตรวจแล้ว</span>
+                    <p className="text-sm sm:text-base font-extrabold text-blue-900 font-mono mt-0.5">{stats.checkedCount} ชุด</p>
+                  </div>
+                  <div className="p-3 bg-amber-50/80 rounded-2xl border border-amber-200">
+                    <span className="text-amber-900 font-bold block text-[11px]">ยังไม่ตรวจ</span>
+                    <p className="text-sm sm:text-base font-extrabold text-amber-950 font-mono mt-0.5">{stats.uncheckedCount} ชุด</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* CARD 2: สัดส่วนสถานะชิ้นอุปกรณ์ทั้งหมด (2,262 รายการ) */}
             <div className="modern-glass-card rounded-3xl p-6 border border-white/80 shadow-sm space-y-4">
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
                     <PieIcon className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-base font-extrabold text-slate-900 font-prompt">สัดส่วนสถานะชิ้นอุปกรณ์ทั้งหมด</h3>
+                    <h3 className="text-base font-extrabold text-slate-900 font-prompt">
+                      2. สัดส่วนสถานะชิ้นอุปกรณ์ทั้งหมด
+                    </h3>
                     <p className="text-xs text-slate-500">คิดจาก 6 รายการอุปกรณ์ต่อชุด (รอบที่ {config.current_round})</p>
                   </div>
                 </div>
@@ -414,16 +480,16 @@ export default function PublicDashboard() {
                 </span>
               </div>
 
-              <div className="h-64 relative flex items-center justify-center">
+              <div className="h-60 relative flex items-center justify-center">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={donutPieData}
                       cx="50%"
                       cy="50%"
-                      innerRadius={65}
-                      outerRadius={95}
-                      paddingAngle={5}
+                      innerRadius={60}
+                      outerRadius={88}
+                      paddingAngle={4}
                       dataKey="value"
                       animationDuration={1200}
                     >
@@ -440,40 +506,43 @@ export default function PublicDashboard() {
                 </ResponsiveContainer>
 
                 <div className="absolute flex flex-col items-center justify-center pointer-events-none mb-6 text-center">
-                  <span className="text-xl font-extrabold text-slate-900 font-mono">{checkedItemsUniverse} / {totalItemsUniverse}</span>
+                  <span className="text-lg font-extrabold text-slate-900 font-mono">{checkedItemsUniverse} / {totalItemsUniverse}</span>
                   <span className="text-[10px] text-slate-400 font-bold uppercase">รายการอุปกรณ์ที่ตรวจแล้ว</span>
                 </div>
               </div>
             </div>
 
-            {/* CHART 2: Clean Horizontal Progress Bars */}
+            {/* CARD 3: จำนวนพบปัญหา 6 รายการ */}
             <div className="modern-glass-card rounded-3xl p-6 border border-white/80 shadow-sm space-y-4">
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2.5">
                   <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
                     <BarChart3 className="w-5 h-5" />
                   </div>
-                  <h3 className="text-base font-extrabold text-slate-900 font-prompt">
-                    📊 จำนวนพบปัญหา 6 รายการ (รอบที่ {config.current_round})
-                  </h3>
+                  <div>
+                    <h3 className="text-base font-extrabold text-slate-900 font-prompt">
+                      3. จำนวนพบปัญหา 6 รายการ
+                    </h3>
+                    <p className="text-xs text-slate-500">แยกตามชนิดอุปกรณ์ทั้ง 6 รายการ (รอบที่ {config.current_round})</p>
+                  </div>
                 </div>
                 <span className="px-3 py-1 bg-rose-100 text-rose-800 rounded-full text-xs font-bold border border-rose-200">
                   รวม {totalDamagedItemsCount} รายการ
                 </span>
               </div>
 
-              <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200/80 space-y-4">
+              <div className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200/80 space-y-3.5">
                 {categoryProgressList.map((item, idx) => {
                   const barPercent = item.count > 0 ? Math.max(Math.round((item.count / maxDamagedCount) * 100), 12) : 0;
 
                   return (
-                    <div key={idx} className="space-y-1.5">
+                    <div key={idx} className="space-y-1">
                       <div className="flex justify-between items-center text-xs font-bold text-slate-800">
                         <span className="font-prompt">{item.label}</span>
                         <span className="font-mono text-slate-900">{item.count} {item.unit}</span>
                       </div>
 
-                      <div className="w-full bg-slate-200/80 rounded-full h-3.5 p-0.5 overflow-hidden">
+                      <div className="w-full bg-slate-200/80 rounded-full h-3 p-0.5 overflow-hidden">
                         <div 
                           className={`h-full rounded-full transition-all duration-1000 ${item.color}`} 
                           style={{ width: `${barPercent}%` }}
@@ -485,103 +554,101 @@ export default function PublicDashboard() {
               </div>
             </div>
 
-          </div>
-
-          {/* Interactive Charts Row 2: Precision Item-Level Defect/Loss Bar Chart per Grade Level */}
-          <div className="modern-glass-card rounded-3xl p-6 border border-white/80 shadow-md space-y-5">
-            
-            {/* Header & Grade Level Progress Cards */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-slate-200/80">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-blue-500 text-white flex items-center justify-center shadow-md shadow-indigo-500/20">
-                  <BarChart2 className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base sm:text-lg font-extrabold text-slate-900 font-prompt">
-                    จำนวนชิ้นอุปกรณ์ที่พบปัญหาแยกตามระดับชั้น (ม.4 - ม.6 & ครู)
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    แสดงจำนวนชิ้นอุปกรณ์ที่พบปัญหา <span className="font-bold text-rose-600">ชำรุด</span> และ <span className="font-bold text-purple-600">สูญหาย</span> (หน่วย: รายการ)
-                  </p>
+            {/* CARD 4: สัดส่วนการพบปัญหาเป็นระดับชั้น (คำนวณอัตราส่วนเป็นชุด) */}
+            <div className="modern-glass-card rounded-3xl p-6 border border-white/80 shadow-md space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    <BarChart2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-slate-900 font-prompt">
+                      4. สัดส่วนการพบปัญหาแยกตามระดับชั้น
+                    </h3>
+                    <p className="text-xs text-slate-500">อัตราส่วนและจำนวนชุดที่พบปัญหาประจำชั้น (หน่วย: ชุด)</p>
+                  </div>
                 </div>
               </div>
 
-              {/* Progress Summary Cards per Grade */}
-              <div className="flex flex-wrap gap-2 text-xs">
+              {/* 4 Grade Level Problem Ratio Pills (ม.4, ม.5, ม.6, ครู) */}
+              <div className="grid grid-cols-2 gap-2 text-xs font-sarabun">
                 {gradeComparisonData.map((g, idx) => (
-                  <div key={idx} className="px-3 py-1.5 bg-slate-100/80 border border-slate-200 rounded-xl flex items-center space-x-1.5 font-sarabun">
-                    <span className="font-extrabold text-slate-800">{g.name}:</span>
-                    <span className="font-mono font-bold text-blue-700">ตรวจแล้ว {g.checked}/{g.total} ชุด</span>
-                    <span className="text-[10px] px-1.5 py-0.2 bg-blue-100 text-blue-800 rounded-full font-bold">
-                      {g.percent}%
-                    </span>
+                  <div key={idx} className="p-2.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-1">
+                    <div className="flex items-center justify-between font-extrabold text-slate-900 font-prompt">
+                      <span>{g.name}:</span>
+                      <span className="text-[11px] font-mono text-blue-700 font-bold">ตรวจแล้ว {g.checked}/{g.total} ชุด</span>
+                    </div>
+                    
+                    <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200/60">
+                      <span className="text-slate-500 font-medium">พบปัญหา:</span>
+                      {g.problemSets > 0 ? (
+                        <span className="px-2 py-0.5 bg-rose-100 text-rose-800 rounded-full font-extrabold font-mono border border-rose-200">
+                          {g.problemSets} ชุด
+                        </span>
+                      ) : (
+                        <span className="text-emerald-600 font-bold font-mono">0 ชุด (สมบูรณ์ 100%)</span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
+
+              {/* Precision Bar Chart */}
+              <div className="h-44 pt-1">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart 
+                    data={gradeComparisonData} 
+                    margin={{ top: 15, right: 15, left: -20, bottom: 0 }}
+                    barCategoryGap="25%"
+                  >
+                    <defs>
+                      <linearGradient id="barRedItem" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#F43F5E" stopOpacity={0.95} />
+                        <stop offset="100%" stopColor="#E11D48" stopOpacity={0.95} />
+                      </linearGradient>
+                      <linearGradient id="barPurpleItem" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#A855F7" stopOpacity={0.95} />
+                        <stop offset="100%" stopColor="#7E22CE" stopOpacity={0.95} />
+                      </linearGradient>
+                    </defs>
+
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                    
+                    <XAxis 
+                      dataKey="name" 
+                      tick={{ fontSize: 11, fill: '#1E293B', fontWeight: 800, fontFamily: 'Prompt' }} 
+                      axisLine={false} 
+                      tickLine={false} 
+                    />
+                    
+                    <YAxis 
+                      tick={{ fontSize: 10, fill: '#64748B' }} 
+                      axisLine={false} 
+                      tickLine={false}
+                      allowDecimals={false}
+                    />
+                    
+                    <Tooltip content={<CustomBarTooltip />} />
+                    
+                    <Bar 
+                      dataKey="damagedItems" 
+                      name="ชำรุด (รายการ)" 
+                      fill="url(#barRedItem)" 
+                      radius={[6, 6, 0, 0]} 
+                      animationDuration={1000}
+                    />
+                    <Bar 
+                      dataKey="lostItems" 
+                      name="สูญหาย (รายการ)" 
+                      fill="url(#barPurpleItem)" 
+                      radius={[6, 6, 0, 0]} 
+                      animationDuration={1000}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
 
-            {/* Precision Item-Level Recharts Bar Chart (Unit: รายการ) */}
-            <div className="h-72 sm:h-80 pt-2">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart 
-                  data={gradeComparisonData} 
-                  margin={{ top: 25, right: 25, left: -15, bottom: 10 }}
-                  barCategoryGap="25%"
-                >
-                  <defs>
-                    <linearGradient id="barRedItem" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#F43F5E" stopOpacity={0.95} />
-                      <stop offset="100%" stopColor="#E11D48" stopOpacity={0.95} />
-                    </linearGradient>
-                    <linearGradient id="barPurpleItem" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#A855F7" stopOpacity={0.95} />
-                      <stop offset="100%" stopColor="#7E22CE" stopOpacity={0.95} />
-                    </linearGradient>
-                  </defs>
-
-                  <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#E2E8F0" />
-                  
-                  <XAxis 
-                    dataKey="name" 
-                    tick={{ fontSize: 13, fill: '#1E293B', fontWeight: 800, fontFamily: 'Prompt' }} 
-                    axisLine={{ stroke: '#CBD5E1', strokeWidth: 1.5 }} 
-                    tickLine={false} 
-                    dy={8}
-                  />
-                  
-                  <YAxis 
-                    tick={{ fontSize: 11, fill: '#64748B', fontWeight: 600 }} 
-                    axisLine={false} 
-                    tickLine={false}
-                    allowDecimals={false}
-                  />
-                  
-                  <Tooltip content={<CustomBarTooltip />} />
-                  
-                  <Legend 
-                    verticalAlign="top" 
-                    align="right"
-                    wrapperStyle={{ paddingBottom: '15px' }} 
-                    iconType="circle"
-                  />
-                  
-                  <Bar 
-                    dataKey="damagedItems" 
-                    name="อุปกรณ์ชำรุด (หน่วย: รายการ)" 
-                    fill="url(#barRedItem)" 
-                    radius={[8, 8, 0, 0]} 
-                    animationDuration={1000}
-                  />
-                  <Bar 
-                    dataKey="lostItems" 
-                    name="อุปกรณ์สูญหาย (หน่วย: รายการ)" 
-                    fill="url(#barPurpleItem)" 
-                    radius={[8, 8, 0, 0]} 
-                    animationDuration={1000}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
           </div>
 
           {/* Table of Damaged & Lost Devices Log with Multi-Dimensional Filters */}
