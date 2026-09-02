@@ -16,7 +16,9 @@ import {
   Filter,
   BarChart2,
   HelpCircle,
-  Package
+  Package,
+  Search,
+  UserCheck
 } from 'lucide-react';
 import { 
   PieChart, 
@@ -46,6 +48,14 @@ export default function PublicDashboard() {
   const [stats, setStats] = useState(null);
   const [annualStats, setAnnualStats] = useState(null);
   const [gradeComparisonData, setGradeComparisonData] = useState([]);
+
+  // Filters specifically for the Damaged/Lost Devices Table
+  const [tableTypeFilter, setTableTypeFilter] = useState("ทั้งหมด"); // 'ทั้งหมด', 'student', 'teacher'
+  const [tableGradeFilter, setTableGradeFilter] = useState("ทั้งหมด"); // 'ทั้งหมด', 'ม.4', 'ม.5', 'ม.6', 'ครู'
+  const [tableRoomFilter, setTableRoomFilter] = useState("ทั้งหมด"); // 'ทั้งหมด', '1', '2', '3', '4'
+  const [tableCategoryFilter, setTableCategoryFilter] = useState("ทั้งหมด"); // 'ทั้งหมด', 'tablet', 'spen', ...
+  const [tableStatusFilter, setTableStatusFilter] = useState("ทั้งหมด"); // 'ทั้งหมด', 'damaged', 'lost'
+  const [tableSearchQuery, setTableSearchQuery] = useState("");
 
   const loadDashboardData = async () => {
     setLoading(true);
@@ -169,6 +179,49 @@ export default function PublicDashboard() {
   ] : [];
 
   const maxAnnualDamagedCount = Math.max(...annualCategoryProgressList.map(c => c.count), 1);
+
+  // Filtered Damaged/Lost Items List based on multi-dimensional filters
+  const filteredDamagedDetailsList = (stats.damagedDetailsList || []).filter(item => {
+    // 1. User type filter
+    if (tableTypeFilter === 'student' && item.type !== 'student') return false;
+    if (tableTypeFilter === 'teacher' && item.type !== 'teacher') return false;
+
+    // 2. Grade filter
+    if (tableGradeFilter !== 'ทั้งหมด') {
+      if (tableGradeFilter === 'ครู') {
+        if (item.type !== 'teacher') return false;
+      } else if (item.grade !== tableGradeFilter) {
+        return false;
+      }
+    }
+
+    // 3. Room filter
+    if (tableRoomFilter !== 'ทั้งหมด' && item.type !== 'teacher') {
+      if (String(item.room) !== String(tableRoomFilter)) return false;
+    }
+
+    // 4. Category filter
+    if (tableCategoryFilter !== 'ทั้งหมด') {
+      if (item.category_key !== tableCategoryFilter) return false;
+    }
+
+    // 5. Status filter (damaged vs lost)
+    if (tableStatusFilter === 'damaged' && item.status_type !== 'damaged') return false;
+    if (tableStatusFilter === 'lost' && item.status_type !== 'lost') return false;
+
+    // 6. Search query
+    if (tableSearchQuery) {
+      const q = tableSearchQuery.toLowerCase();
+      return (
+        (item.serial_no && item.serial_no.toLowerCase().includes(q)) ||
+        (item.owner && item.owner.toLowerCase().includes(q)) ||
+        (item.note && item.note.toLowerCase().includes(q)) ||
+        (item.item_name && item.item_name.toLowerCase().includes(q))
+      );
+    }
+
+    return true;
+  });
 
   // Custom Recharts Tooltip for Item-Level Grade Bar Chart
   const CustomBarTooltip = ({ active, payload, label }) => {
@@ -523,22 +576,134 @@ export default function PublicDashboard() {
             </div>
           </div>
 
-          {/* Table of Damaged & Lost Devices Log */}
-          <div className="modern-glass rounded-3xl border border-white/80 shadow-sm overflow-hidden">
-            <div className="p-5 border-b border-slate-200/60 flex items-center justify-between bg-white/60">
+          {/* Table of Damaged & Lost Devices Log with Multi-Dimensional Filters */}
+          <div className="modern-glass rounded-3xl border border-white/80 shadow-sm overflow-hidden space-y-0">
+            
+            {/* Table Top Title Header */}
+            <div className="p-5 border-b border-slate-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/60">
               <div>
                 <h3 className="text-base font-extrabold text-slate-900 font-prompt">
                   ตารางแสดงรายการอุปกรณ์ที่ชำรุด / สูญหาย
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  แสดงเฉพาะอุปกรณ์ที่ได้รับแจ้งชำรุดหรือสูญหายในรอบการตรวจที่ {config.current_round}
+                  แสดงรายการอุปกรณ์ชำรุดและสูญหายประจำรอบที่ {config.current_round} (กรองแสดงผลได้หลายมิติ)
                 </p>
               </div>
-              <span className="px-3 py-1 bg-rose-100 text-rose-800 rounded-full text-xs font-bold border border-rose-200">
-                {stats.damagedDetailsList.length} รายการ
+              <span className="px-3.5 py-1.5 bg-rose-100 text-rose-800 rounded-full text-xs font-bold border border-rose-200 self-start sm:self-auto">
+                พบทั้งหมด {filteredDamagedDetailsList.length} / {stats.damagedDetailsList.length} รายการ
               </span>
             </div>
 
+            {/* Interactive Multi-Dimensional Filter Control Bar */}
+            <div className="p-4 bg-slate-50/90 border-b border-slate-200/80 space-y-3 font-sarabun">
+              
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center space-x-2 font-extrabold text-slate-800 text-xs font-prompt">
+                  <Filter className="w-4 h-4 text-blue-600" />
+                  <span>กรองแสดงผลตาราง:</span>
+                </div>
+                
+                <div className="relative w-full sm:w-72">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    placeholder="ค้น Serial No., ชื่อผู้ครอบครอง..."
+                    value={tableSearchQuery}
+                    onChange={(e) => setTableSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* 5 Select Filter Dropdowns Row */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 text-xs">
+                
+                {/* 1. ประเภทผู้ครอบครอง */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">ประเภทผู้ครองครอง:</label>
+                  <select
+                    value={tableTypeFilter}
+                    onChange={(e) => setTableTypeFilter(e.target.value)}
+                    className="w-full p-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-800 focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="ทั้งหมด">ทั้งหมด (ครู + นักเรียน)</option>
+                    <option value="student">นักเรียน</option>
+                    <option value="teacher">ครูผู้สอน</option>
+                  </select>
+                </div>
+
+                {/* 2. ระดับชั้น */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">ระดับชั้น:</label>
+                  <select
+                    value={tableGradeFilter}
+                    onChange={(e) => {
+                      setTableGradeFilter(e.target.value);
+                      if (e.target.value === 'ครู') setTableRoomFilter('ทั้งหมด');
+                    }}
+                    className="w-full p-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-800 focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="ทั้งหมด">ทุกระดับชั้น (ม.4-ม.6)</option>
+                    <option value="ม.4">ม.4</option>
+                    <option value="ม.5">ม.5</option>
+                    <option value="ม.6">ม.6</option>
+                    <option value="ครู">ครูผู้สอน</option>
+                  </select>
+                </div>
+
+                {/* 3. ห้อง */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">ห้อง:</label>
+                  <select
+                    value={tableRoomFilter}
+                    onChange={(e) => setTableRoomFilter(e.target.value)}
+                    disabled={tableGradeFilter === 'ครู'}
+                    className="w-full p-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <option value="ทั้งหมด">ทุกห้อง (1-4)</option>
+                    <option value="1">ห้อง 1</option>
+                    <option value="2">ห้อง 2</option>
+                    <option value="3">ห้อง 3</option>
+                    <option value="4">ห้อง 4</option>
+                  </select>
+                </div>
+
+                {/* 4. รายอุปกรณ์ (6 รายการ) */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">รายอุปกรณ์ (6 ชนิด):</label>
+                  <select
+                    value={tableCategoryFilter}
+                    onChange={(e) => setTableCategoryFilter(e.target.value)}
+                    className="w-full p-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-800 focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="ทั้งหมด">ทุกชนิดอุปกรณ์</option>
+                    <option value="tablet">1. Tablet</option>
+                    <option value="spen">2. ปากกา S Pen</option>
+                    <option value="keyboard">3. คีย์บอร์ด</option>
+                    <option value="cable_white">4. สาย Tablet (ขาว)</option>
+                    <option value="cable_black">5. สาย KB (ดำ)</option>
+                    <option value="adapter">6. Adapter</option>
+                  </select>
+                </div>
+
+                {/* 5. สถานะปัญหา */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">สถานะปัญหา:</label>
+                  <select
+                    value={tableStatusFilter}
+                    onChange={(e) => setTableStatusFilter(e.target.value)}
+                    className="w-full p-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-800 focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="ทั้งหมด">ทั้งหมด (ชำรุด + สูญหาย)</option>
+                    <option value="damaged">ชำรุดเท่านั้น</option>
+                    <option value="lost">สูญหายเท่านั้น</option>
+                  </select>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Table Content */}
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs text-slate-700">
                 <thead className="bg-slate-50 text-slate-800 uppercase font-bold border-b border-slate-200">
@@ -554,18 +719,27 @@ export default function PublicDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white/60">
-                  {stats.damagedDetailsList.length === 0 ? (
+                  {filteredDamagedDetailsList.length === 0 ? (
                     <tr>
-                      <td colSpan="8" className="p-8 text-center text-slate-400 font-medium">
-                        🎉 ไม่พบอุปกรณ์ชำรุดหรือสูญหายในรอบการตรวจนี้ (อุปกรณ์ทุกชุดสมบูรณ์ 100%)
+                      <td colSpan="8" className="p-8 text-center text-slate-500 font-medium">
+                        ไม่พบรายการอุปกรณ์ตามเงื่อนไขที่เลือกกรอง
                       </td>
                     </tr>
                   ) : (
-                    stats.damagedDetailsList.map((item, idx) => (
+                    filteredDamagedDetailsList.map((item, idx) => (
                       <tr key={idx} className="hover:bg-rose-50/40 transition-colors">
                         <td className="p-3.5 text-slate-400 font-mono">{idx + 1}</td>
                         <td className="p-3.5 font-mono font-extrabold text-blue-900">{item.serial_no}</td>
-                        <td className="p-3.5 font-bold text-slate-900 font-prompt">{item.owner}</td>
+                        <td className="p-3.5 font-bold text-slate-900 font-prompt">
+                          <span className="flex items-center space-x-1.5">
+                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold ${
+                              item.type === 'teacher' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {item.type === 'teacher' ? 'ครู' : 'นักเรียน'}
+                            </span>
+                            <span>{item.owner}</span>
+                          </span>
+                        </td>
                         <td className="p-3.5 font-semibold text-slate-800">{item.grade_room}</td>
                         <td className="p-3.5 font-mono text-slate-500">{item.box_no} / {item.box_kb_no}</td>
                         <td className="p-3.5">

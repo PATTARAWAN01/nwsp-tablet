@@ -239,7 +239,7 @@ export const inspectionService = {
       teacherName: inspector || "ครูผู้ตรวจเช็ค",
       action: "บันทึกผลการตรวจเช็คอุปกรณ์ประจำห้อง",
       deviceCount: recordsList.length,
-      details: `บันทึกข้อมูลอุปกรณ์จำนวน ${recordsList.length} เครื่อง`
+      details: `บันทึกข้อมูลอุปกรณ์จำนวน ${recordsList.length} ชุด`
     });
 
     return true;
@@ -288,8 +288,11 @@ export const inspectionService = {
                 box_no: dev.box_no,
                 box_kb_no: dev.box_kb_no,
                 owner: `${dev.prefix ? dev.prefix + ' ' : ''}${dev.first_name} ${dev.last_name}`,
-                type: dev.type,
+                type: dev.type, // 'student' or 'teacher'
+                grade: dev.type === 'teacher' ? 'ครู' : dev.grade,
+                room: dev.type === 'teacher' ? '-' : String(dev.room),
                 grade_room: dev.type === 'teacher' ? 'ครู' : `${dev.grade}/${dev.room}`,
+                category_key: cat,
                 item_name: getCategoryLabel(cat),
                 status_type: st, // 'damaged' or 'lost'
                 status_label: st === 'lost' ? 'สูญหาย' : 'ชำรุด',
